@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "node api/dev-server.js",
     "start": "node api/dev-server.js",
-    "build": "npm --prefix client install --no-audit --no-fund && npm --prefix client run build",
+    "build": "npm --prefix client install --include=dev --no-audit --no-fund && npm --prefix client run build",
     "client:dev": "npm --prefix client run dev",
     "seed": "node api/scripts/seed.js",
     "test": "node scripts/smoke-test.mjs"
