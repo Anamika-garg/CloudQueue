@@ -5,7 +5,7 @@
   "description": "CloudQueue - cloud-based queue management system for campus administrative offices. React + Vite SPA, Vercel serverless Express API, MongoDB Atlas, Firebase Authentication.",
   "main": "api/index.js",
   "engines": {
-    "node": "20.x"
+    "node": "26.x"
   },
   "scripts": {
     "dev": "node api/dev-server.js",
