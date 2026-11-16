@@ -1,0 +1,35 @@
+# dependencies
+node_modules/
+client/node_modules/
+.pnp/
+.pnp.js
+
+# builds
+client/dist/
+dist/
+.vercel/
+
+# env & secrets
+.env
+.env.local
+.env.*.local
+client/.env
+client/.env.local
+*.pem
+serviceAccountKey.json
+
+# logs & os
+npm-debug.log*
+yarn-error.log*
+logs/
+*.log
+.DS_Store
+Thumbs.db
+
+# editors
+.vscode/
+.idea/
+
+# misc
+coverage/
+.tmp/

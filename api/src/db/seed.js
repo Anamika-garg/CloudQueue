@@ -1,0 +1,249 @@
+'use strict';
+
+const { config } = require('../config/env');
+const { dateKeyFor } = require('../lib/dateKey');
+
+/**
+ * Demo seed.
+ *
+ * Produces a believable campus day - four offices, ~90 tokens spread over the
+ * last three days, one token currently being served per office and a couple
+ * waiting - so the dashboards, charts and display board are populated the
+ * moment the app boots in demo mode. The same routine powers `npm run seed`
+ * against MongoDB Atlas.
+ */
+
+const DEMO_USERS = [
+  { email: 'student@campus.edu', displayName: 'Aarav Sharma', role: 'user' },
+  { email: 'fatima@campus.edu', displayName: 'Fatima Bello', role: 'user' },
+  { email: 'marcus@campus.edu', displayName: 'Marcus Reed', role: 'user' },
+  { email: 'lena@campus.edu', displayName: 'Lena Ortiz', role: 'user' },
+  { email: 'yusuf@campus.edu', displayName: 'Yusuf Demir', role: 'user' },
+  { email: 'admin@campus.edu', displayName: 'Priya Nair', role: 'admin' },
+  { email: 'super@campus.edu', displayName: 'Daniel Osei', role: 'super_admin' },
+];
+
+const DEMO_SERVICES = [
+  {
+    code: 'REG',
+    name: 'Registrar',
+    description: 'Enrolment letters, transcripts, course changes and student records.',
+    location: 'Admin Block, Room 104',
+    averageServiceMinutes: 6,
+    color: 'indigo',
+    dailyVolume: 24,
+  },
+  {
+    code: 'CLN',
+    name: 'Campus Clinic',
+    description: 'Consultations, sick notes, vaccinations and basic diagnostics.',
+    location: 'Health Centre, Ground Floor',
+    averageServiceMinutes: 8,
+    color: 'emerald',
+    dailyVolume: 17,
+  },
+  {
+    code: 'LIB',
+    name: 'Library Services',
+    description: 'Book loans, research assistance and printing account support.',
+    location: 'Main Library, Level 2',
+    averageServiceMinutes: 4,
+    color: 'amber',
+    dailyVolume: 13,
+  },
+  {
+    code: 'BUR',
+    name: 'Bursary',
+    description: 'Fee statements, payment plans, refunds and scholarship queries.',
+    location: 'Finance Block, Room 12',
+    averageServiceMinutes: 7,
+    color: 'rose',
+    dailyVolume: 15,
+  },
+];
+
+/** Deterministic PRNG so every boot looks the same (nice for screenshots). */
+function mulberry32(seed) {
+  let a = seed;
+  return function random() {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+const pad3 = (value) => String(value).padStart(3, '0');
+
+async function seedActivity(store) {
+  const now = new Date();
+  const todayKey = dateKeyFor(now, config.timezone);
+  const random = mulberry32(20261116);
+
+  // 1. Users ---------------------------------------------------------------
+  const users = {};
+  for (const [index, demo] of DEMO_USERS.entries()) {
+    const user = await store.users.upsertFromAuth({
+      firebaseUid: `demo_${demo.email.replace(/[^a-z0-9]/gi, '_')}`,
+      email: demo.email,
+      displayName: demo.displayName,
+    });
+    if (user.role !== demo.role) {
+      users[demo.email] = await store.users.updateRole(user.id, demo.role);
+    } else {
+      users[demo.email] = user;
+    }
+    // Slight stagger so "recent users" lists are not all identical.
+    if (user.createdAt) user.createdAt = new Date(now.getTime() - (index + 1) * 86400000);
+  }
+
+  // 2. Services ------------------------------------------------------------
+  const services = {};
+  for (const demo of DEMO_SERVICES) {
+    const existing = await store.services.findByCode(demo.code);
+    const { dailyVolume, ...serviceFields } = demo;
+    services[demo.code] =
+      existing ||
+      (await store.services.create({
+        ...serviceFields,
+        createdBy: 'seed',
+      }));
+  }
+
+  const students = DEMO_USERS.filter((user) => user.role === 'user').map((user) => users[user.email]);
+  const primaryStudent = users['student@campus.edu'];
+  if (!students.length || !primaryStudent) throw new Error('Seed users missing');
+
+  // 3. Build timestamps, grouped by service + campus day --------------------
+  const groups = new Map();
+
+  for (const demo of DEMO_SERVICES) {
+    const service = services[demo.code];
+    for (let dayOffset = 0; dayOffset < 3; dayOffset += 1) {
+      const volume = Math.max(
+        6,
+        Math.round(demo.dailyVolume * (0.75 + random() * 0.5) - dayOffset * 2)
+      );
+      for (let i = 0; i < volume; i += 1) {
+        // Spread over roughly the last 7 hours of that day.
+        const minutesBack = 6 + random() * 410;
+        const issuedAt = new Date(
+          now.getTime() - dayOffset * 86400000 - minutesBack * 60000
+        );
+        const dateKey = dateKeyFor(issuedAt, config.timezone);
+        const key = `${demo.code}:${dateKey}`;
+        if (!groups.has(key)) groups.set(key, { service, dateKey, rows: [] });
+        groups.get(key).rows.push({ issuedAt, service });
+      }
+    }
+  }
+
+  // 4. Materialise tokens ---------------------------------------------------
+  let created = 0;
+  for (const group of groups.values()) {
+    const rows = group.rows.sort((a, b) => a.issuedAt - b.issuedAt);
+    const isToday = group.dateKey === todayKey;
+    const liveCount = isToday ? Math.min(3, rows.length) : 0;
+    const firstLiveIndex = rows.length - liveCount;
+
+    for (let index = 0; index < rows.length; index += 1) {
+      const sequence = await store.queue.nextSequence(group.service.id, group.dateKey);
+      const tokenNumber = `${group.service.code}-${pad3(sequence)}`;
+
+      // Give the demo student a realistic personal history, never a live token
+      // so the "Get Token" walkthrough in the demo script is never blocked.
+      const isPrimaryHistory =
+        isToday && index < Math.max(0, firstLiveIndex - 2) && index % 5 === 0;
+      // Live line entries never belong to the demo student, so the "get a
+      // token" walkthrough always starts from a clean slate.
+      const pool = index >= firstLiveIndex ? students.filter((s) => s.id !== primaryStudent.id) : students;
+      const student = isPrimaryHistory
+        ? primaryStudent
+        : pool[Math.floor(random() * pool.length)] || primaryStudent;
+
+      const status = (() => {
+        if (index >= firstLiveIndex && liveCount > 0) {
+          if (index === firstLiveIndex) return 'serving';
+          return 'waiting';
+        }
+        const roll = random();
+        if (roll < 0.08) return 'no_show';
+        if (roll < 0.17) return 'cancelled';
+        return 'served';
+      })();
+
+      const waitMinutes = Math.round((4 + random() * 24) * 10) / 10;
+      const serviceMinutes = Math.round(
+        (Math.max(2, group.service.averageServiceMinutes - 3) + random() * 6) * 10
+      ) / 10;
+
+      let calledAt = null;
+      let servedAt = null;
+      let completedAt = null;
+
+      if (status === 'serving') {
+        calledAt = new Date(now.getTime() - (1 + random() * 4) * 60000);
+      } else if (status === 'served' || status === 'no_show') {
+        calledAt = new Date(rows[index].issuedAt.getTime() + waitMinutes * 60000);
+        if (calledAt > now) calledAt = new Date(now.getTime() - 5 * 60000);
+        if (status === 'served') {
+          servedAt = new Date(Math.min(now.getTime(), calledAt.getTime() + serviceMinutes * 60000));
+        }
+        completedAt = servedAt || new Date(Math.min(now.getTime(), calledAt.getTime() + 60000));
+      } else if (status === 'cancelled') {
+        completedAt = new Date(
+          Math.min(now.getTime(), rows[index].issuedAt.getTime() + (1 + random() * 8) * 60000)
+        );
+      }
+
+      // Keep the persisted durations consistent with the timestamps so charts
+      // and the history table tell the same story.
+      const actualWait =
+        calledAt && calledAt > rows[index].issuedAt
+          ? Math.round(((calledAt - rows[index].issuedAt) / 60000) * 10) / 10
+          : null;
+      const actualService =
+        servedAt && calledAt
+          ? Math.round(((servedAt - calledAt) / 60000) * 10) / 10
+          : null;
+
+      const token = await store.tokens.create({
+        tokenNumber,
+        serviceId: group.service.id,
+        serviceCode: group.service.code,
+        serviceName: group.service.name,
+        userId: student.id,
+        userEmail: student.email,
+        userDisplayName: student.displayName,
+        status,
+        issuedSequence: sequence,
+        issuedAt: rows[index].issuedAt,
+        calledAt: calledAt && calledAt > rows[index].issuedAt ? calledAt : null,
+        servedAt,
+        completedAt,
+        dateKey: group.dateKey,
+        positionAtIssue: index + 1,
+        waitMinutes: actualWait,
+        serviceMinutes: actualService,
+        cancelledBy: status === 'cancelled' ? 'user' : null,
+      });
+
+      if (status === 'serving') {
+        await store.queue.setServing(group.service.id, group.dateKey, token.id, token.calledAt || now);
+      }
+      created += 1;
+    }
+  }
+
+  await store.audit.log({
+    action: 'service.create',
+    performedBy: { userId: 'seed', email: 'system@cloudqueue', role: 'super_admin' },
+    target: { type: 'seed', id: null, label: 'Demo dataset' },
+    metadata: { services: Object.keys(services).length, tokens: created },
+  });
+
+  return { users: Object.keys(users).length, services: Object.keys(services).length, tokens: created };
+}
+
+module.exports = { seedActivity, DEMO_USERS, DEMO_SERVICES };
