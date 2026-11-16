@@ -480,8 +480,8 @@ export function Admin() {
               ))}
             </dl>
             <div className="mt-4 rounded-xl bg-slate-50 p-3 text-[11px] leading-relaxed text-slate-500">
-              Call-next is atomic: the previous token is marked served and the oldest waiting token is
-              claimed in a single database round trip.
+              Call-next is atomic: the oldest waiting token is claimed with a single database
+              operation, so two tellers can never call the same person.
             </div>
           </section>
 
@@ -493,18 +493,25 @@ export function Admin() {
               </span>
             </div>
             <ol className="divide-y divide-slate-100">
-              {(audit.data?.entries || []).map((entry) => (
-                <li key={entry.id} className="px-5 py-3">
-                  <p className="text-xs font-semibold text-slate-800">
-                    {entry.action.replace(/[._]/g, ' ')}
-                  </p>
-                  <p className="mt-0.5 truncate text-[11px] text-slate-500">
-                    {entry.performedBy?.email || 'system'}
-                    {entry.target?.label ? ` · ${entry.target.label}` : ''}
-                  </p>
-                  <p className="mt-0.5 text-[10px] text-slate-400">{relativeTime(entry.createdAt)}</p>
-                </li>
-              ))}
+              {(audit.data?.entries || []).map((entry) => {
+                const actor = entry.performedBy?.email || 'system';
+                const target =
+                  entry.target?.label && entry.target.label !== actor
+                    ? ` · ${entry.target.label}`
+                    : '';
+                return (
+                  <li key={entry.id} className="px-5 py-3">
+                    <p className="text-xs font-semibold capitalize text-slate-800">
+                      {entry.action.replace(/[._]/g, ' ')}
+                    </p>
+                    <p className="mt-0.5 truncate text-[11px] text-slate-500">
+                      {actor}
+                      {target}
+                    </p>
+                    <p className="mt-0.5 text-[10px] text-slate-400">{relativeTime(entry.createdAt)}</p>
+                  </li>
+                );
+              })}
               {!audit.data?.entries?.length && (
                 <li className="px-5 py-6 text-center text-xs text-slate-400">
                   No privileged actions recorded yet.

@@ -35,6 +35,8 @@ Built as a cloud-computing course project (CCSA), the application is deliberatel
 
 > **Status: deployment-ready, public URL pending.**
 >
+> **Source repository:** <https://github.com/Anamika-garg/CloudQueue>
+>
 > The repository contains a complete Vercel configuration (`vercel.json`), environment templates and a MongoDB seed script. A public URL requires the owner's Vercel, MongoDB Atlas and Firebase projects, which are not available to the build environment. Once deployed, record the URL here:
 >
 > ```
