@@ -1,20 +1,7 @@
-
-
-
-
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  
-  "buildCommand": null,
-  "redirects": [
-    { "source": "/", "destination": "/api", "permanent": false }
-  ],
-  "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api" }
-  ],
   "functions": {
-    "api/index.js": { "maxDuration": 10 }
+    "api/index.js": { "maxDuration": 10 },
+    "api/[...path].js": { "maxDuration": 10 }
   }
 }
-
-
