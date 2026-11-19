@@ -36,7 +36,7 @@ npm run build        # builds client/dist
 npm run dev          # API + SPA on http://localhost:4000
 ```
 
-In demo mode the server reseeds three days of deterministic data on every restart, so the charts and queue are populated immediately.
+In demo mode the server writes three days of deterministic data once per campus day (the in-memory store reseeds on every restart), so the charts and queue are populated immediately. Run `npm run seed` if you ever want to reset the dataset by hand.
 
 Verify before presenting:
 
@@ -66,7 +66,7 @@ Use **two different browser profiles** (or one incognito and one normal). Demo s
 
 ### 4. Know the reset move
 
-If the demo goes sideways, restart the server (`Ctrl+C`, then `npm run dev`). The in-memory store reseeds and the primary student has no live token again, so Act 2 can be repeated cleanly.
+If the demo goes sideways, run `npm run seed` to rebuild the dataset (or restart the server when using the in-memory store). The seeder clears the demo offices' tokens, so the primary student has no live token again and Act 2 can be repeated cleanly.
 
 > **Why the primary student has no live token:** the seed gives `student@campus.edu` history but deliberately keeps them out of today's live queues, so "Get token" always works on the first try.
 
@@ -418,12 +418,12 @@ Use this when you have one minute and one screen.
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | Landing shows **"Cannot reach the CloudQueue API"** | API not running | Start `npm run dev`; check `/api/health` |
-| Sign-in card shows **Live** instead of **Demo** | Firebase env vars present | Unset them or set `DEMO_MODE=true`, restart |
-| Student **Get token** returns "You already hold a token" | A previous run issued one | Cancel it, or restart the server to reseed |
+| Sign-in card shows **Live** instead of **Demo** | Firebase env vars present | Set `DEMO_MODE=true`, or `ALLOW_DEMO_LOGIN=true` to keep both, then restart |
+| Student **Get token** returns "You already hold a token" | A previous run issued one | Cancel it, or run `npm run seed` to reset |
 | Admin page opens on **Bursary** | Services are alphabetical | Click **Registrar** in the service selector |
 | Charts are empty | Date selector is not today, or timezone mismatch | Set the date to today; set `CAMPUS_TIMEZONE` explicitly |
 | Student view does not update after call-next | Poll has not elapsed, or tab is hidden | Bring the tab to the foreground; wait 8 seconds |
-| Display board shows **Idle** everywhere | Queue empty for today | Call a token for that service, or restart to reseed |
+| Display board shows **Idle** everywhere | Queue empty for today | Call a token for that service, or run `npm run seed` |
 | `EADDRINUSE` on start | Old server still running | Stop the previous process; change `PORT` if needed |
 | Build looks stale | Client not rebuilt after changes | `npm run build`, restart |
 | CSV has no rows | No tokens on the selected date/service | Choose today and the seeded service |
