@@ -10,7 +10,7 @@
   }
 
   body {
-    @apply bg-slate-50 text-slate-900;
+    @apply overflow-x-clip bg-slate-50 text-slate-900;
   }
 
   ::selection {
@@ -36,7 +36,7 @@
 
 @layer components {
   .card {
-    @apply rounded-2xl border border-slate-200/80 bg-white shadow-soft;
+    @apply min-w-0 rounded-2xl border border-slate-200/80 bg-white shadow-soft;
   }
 
   .btn {

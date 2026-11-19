@@ -13,15 +13,19 @@ function Clock() {
     return () => clearInterval(timer);
   }, []);
 
+  const time = now.toLocaleTimeString(undefined, {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
+
   return (
     <div className="text-right">
-      <p className="font-mono text-3xl font-semibold tabular-nums tracking-tight text-white sm:text-4xl">
-        {now.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
-        <span className="ml-1 text-base font-normal text-slate-500">
-          {now.toLocaleTimeString(undefined, { second: '2-digit' }).replace(/\D/g, '')}
-        </span>
+      <p className="font-mono text-2xl font-semibold tabular-nums tracking-tight text-white sm:text-3xl">
+        {time}
       </p>
-      <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">
+      <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-slate-500">
         {now.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}
       </p>
     </div>
@@ -71,7 +75,7 @@ export function Display() {
           </div>
         )}
 
-        <div className="mt-8 grid flex-1 content-start gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="mt-8 grid flex-1 content-start grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {services.map((service) => {
             const palette = serviceColor(service.color);
             const serving = Boolean(service.serving);

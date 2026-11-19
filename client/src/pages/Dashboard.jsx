@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import {
@@ -14,7 +13,7 @@ import { usePolling } from '../hooks/usePolling';
 import { AppShell } from '../components/AppShell';
 import { ActiveTokenCard } from '../components/ActiveTokenCard';
 import { ServiceCard } from '../components/ServiceCard';
-import { QueueList, ServingBanner } from '../components/QueueList';
+import { QueueList } from '../components/QueueList';
 import { EmptyState, Skeleton, Spinner } from '../components/Spinner';
 import { LiveBadge, StatusPill } from '../components/StatusPill';
 import { Modal } from '../components/Modal';
@@ -24,7 +23,7 @@ const POLL_MS = 8000;
 
 function EmptyTicket({ services, onSelect }) {
   return (
-    <section className="flex h-full flex-col justify-between rounded-2xl border border-dashed border-slate-300 bg-white/70 p-6">
+    <section className="flex flex-col rounded-2xl border border-dashed border-slate-300 bg-white/70 p-6">
       <div>
         <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="h-5 w-5">
@@ -33,8 +32,8 @@ function EmptyTicket({ services, onSelect }) {
         </span>
         <h2 className="mt-4 text-base font-bold text-slate-900">No active token</h2>
         <p className="mt-1 text-sm leading-relaxed text-slate-500">
-          Pick an office below to generate a token. You will see your position and wait estimate here,
-          refreshed every {POLL_MS / 1000} seconds.
+          Pick an office below to generate a token. Your position and wait estimate appear here
+          and refresh every {POLL_MS / 1000} seconds.
         </p>
       </div>
       <div className="mt-5 flex flex-wrap gap-2">
@@ -208,8 +207,8 @@ export function Dashboard() {
         </div>
       )}
 
-      <div className="mt-6 grid gap-5 lg:grid-cols-3">
-        <div className="space-y-4 lg:col-span-2">
+      <div className="mt-6 grid grid-cols-1 gap-5 lg:grid-cols-3">
+        <div className="min-w-0 space-y-4 lg:col-span-2">
           {overview.loading && !overview.data ? (
             <div className="space-y-4">
               <Skeleton className="h-56 w-full rounded-2xl" />
@@ -236,14 +235,9 @@ export function Dashboard() {
           )}
 
           <div>
-            <div className="mb-3 flex items-end justify-between">
-              <div>
-                <h2 className="text-base font-bold text-slate-900">Available services</h2>
-                <p className="text-xs text-slate-500">One token per office per day.</p>
-              </div>
-              <Link to="/display" className="text-xs font-semibold text-indigo-600 hover:underline">
-                Waiting-room view →
-              </Link>
+            <div className="mb-3">
+              <h2 className="text-base font-bold text-slate-900">Available services</h2>
+              <p className="text-xs text-slate-500">One token per office per day.</p>
             </div>
 
             {servicesPoll.loading && !services.length ? (
@@ -253,7 +247,7 @@ export function Dashboard() {
                 ))}
               </div>
             ) : (
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 {services.map((service) => (
                   <ServiceCard
                     key={service.id}
@@ -279,7 +273,7 @@ export function Dashboard() {
           </div>
         </div>
 
-        <aside className="space-y-4">
+        <aside className="min-w-0 space-y-4">
           <section className="card overflow-hidden">
             <div className="border-b border-slate-100 px-5 py-4">
               <div className="flex items-center justify-between gap-2">
@@ -355,19 +349,11 @@ export function Dashboard() {
             </div>
           </section>
 
-          <section className="card p-5">
-            <h2 className="text-sm font-bold text-slate-900">How the estimate works</h2>
-            <p className="mt-1.5 text-xs leading-relaxed text-slate-500">
-              Your ETA = (people ahead + the person at the counter) × the office&apos;s recent service
-              rate. The rate blends the configured average with today&apos;s completed appointments, so it
-              reacts when the counter runs slow.
+          <section className="card p-4">
+            <p className="text-xs leading-relaxed text-slate-500">
+              <span className="font-semibold text-slate-700">How the estimate works:</span> people
+              ahead (plus the person at the counter) × the office&apos;s recent service rate.
             </p>
-            <div className="mt-3 rounded-xl bg-slate-50 px-3 py-2.5 text-[11px] text-slate-500">
-              <span className="mono-token text-slate-700">
-                ({activeForSelected?.position ? activeForSelected.position - 1 : 0} ahead
-                {status.data?.serving ? ' + 1 serving' : ''}) × {status.data?.averageServiceMinutes ?? '—'} min
-              </span>
-            </div>
           </section>
         </aside>
       </div>
@@ -378,9 +364,6 @@ export function Dashboard() {
             <h2 className="text-base font-bold text-slate-900">Your recent tokens</h2>
             <p className="text-xs text-slate-500">Last {history.length} records across all services.</p>
           </div>
-          <Link to="/display" className="text-xs font-semibold text-indigo-600 hover:underline">
-            Public display board →
-          </Link>
         </div>
 
         <div className="card overflow-hidden">
@@ -389,9 +372,9 @@ export function Dashboard() {
               <thead className="bg-slate-50/70">
                 <tr>
                   <th className="table-head">Token</th>
-                  <th className="table-head">Service</th>
-                  <th className="table-head">Issued</th>
-                  <th className="table-head">Called</th>
+                  <th className="table-head hidden sm:table-cell">Service</th>
+                  <th className="table-head hidden sm:table-cell">Issued</th>
+                  <th className="table-head hidden sm:table-cell">Called</th>
                   <th className="table-head">Waited</th>
                   <th className="table-head">Status</th>
                 </tr>
@@ -400,12 +383,12 @@ export function Dashboard() {
                 {history.map((token) => (
                   <tr key={token.id} className="transition hover:bg-slate-50/60">
                     <td className="table-cell mono-token">{token.tokenNumber}</td>
-                    <td className="table-cell">
+                    <td className="table-cell hidden sm:table-cell">
                       <span className="font-medium text-slate-800">{token.serviceName}</span>
                       <span className="ml-2 text-xs text-slate-400">{token.serviceCode}</span>
                     </td>
-                    <td className="table-cell text-slate-500">{formatTime(token.issuedAt)}</td>
-                    <td className="table-cell text-slate-500">{formatTime(token.calledAt)}</td>
+                    <td className="table-cell hidden text-slate-500 sm:table-cell">{formatTime(token.issuedAt)}</td>
+                    <td className="table-cell hidden text-slate-500 sm:table-cell">{formatTime(token.calledAt)}</td>
                     <td className="table-cell text-slate-500">{formatMinutes(token.waitMinutes)}</td>
                     <td className="table-cell">
                       <span className={cx('badge', statusMeta(token.status).tone)}>

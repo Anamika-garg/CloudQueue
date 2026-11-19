@@ -4,8 +4,6 @@ import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import {
   cx,
-  formatDate,
-  relativeTime,
   serviceColor,
   SERVICE_COLOR_OPTIONS,
 } from '../lib/format';
@@ -50,12 +48,16 @@ export function ServiceAdmin() {
       ]);
       setServices(serviceData.services);
       const ROLE_ORDER = { super_admin: 0, admin: 1, user: 2 };
+      const label = (account) => account.displayName || account.email || account.id || '';
       setUsers(
-        (userData.users || []).slice().sort(
-          (a, b) =>
-            (ROLE_ORDER[a.role] ?? 9) - (ROLE_ORDER[b.role] ?? 9) ||
-            (a.displayName || a.email).localeCompare(b.displayName || b.email)
-        )
+        (userData.users || [])
+          .filter((account) => Boolean(account.email))
+          .slice()
+          .sort(
+            (a, b) =>
+              (ROLE_ORDER[a.role] ?? 9) - (ROLE_ORDER[b.role] ?? 9) ||
+              label(a).localeCompare(label(b))
+          )
       );
     } catch (error) {
       toast.error('Could not load services', error.message);
@@ -264,63 +266,48 @@ export function ServiceAdmin() {
         </div>
 
         <div className="card overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-100">
-              <thead className="bg-slate-50/70">
-                <tr>
-                  <th className="table-head">Account</th>
-                  <th className="table-head">Role</th>
-                  <th className="table-head">Last sign-in</th>
-                  <th className="table-head">Joined</th>
-                  <th className="table-head text-right">Change role</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {users.map((account) => (
-                  <tr key={account.id} className="transition hover:bg-slate-50/60">
-                    <td className="table-cell">
-                      <p className="font-medium text-slate-800">
-                        {account.displayName || account.email}
-                        {account.id === user?.id && <span className="ml-2 text-[11px] text-indigo-500">you</span>}
-                      </p>
-                      <p className="text-[11px] text-slate-400">{account.email}</p>
-                    </td>
-                    <td className="table-cell">
-                      <RoleBadge role={account.role} />
-                    </td>
-                    <td className="table-cell text-slate-500">{relativeTime(account.lastLoginAt)}</td>
-                    <td className="table-cell text-slate-500">{formatDate(account.createdAt)}</td>
-                    <td className="table-cell">
-                      <div className="flex items-center justify-end gap-2">
-                        {roleBusy === account.id && <Spinner className="h-3.5 w-3.5 text-indigo-600" />}
-                        <select
-                          className="input w-auto py-1.5 text-xs"
-                          value={account.role}
-                          disabled={roleBusy === account.id || account.id === user?.id}
-                          onChange={(event) => changeRole(account, event.target.value)}
-                          title={account.id === user?.id ? 'You cannot change your own role' : undefined}
-                        >
-                          <option value="user">Student</option>
-                          <option value="admin">Office admin</option>
-                          <option value="super_admin">Super admin</option>
-                        </select>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-                {!users.length && (
-                  <tr>
-                    <td colSpan={5}>
-                      <EmptyState
-                        title={loading ? 'Loading accounts…' : 'No accounts yet'}
-                        description={loading ? undefined : 'Accounts appear after their first sign-in.'}
-                      />
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+          <ul className="divide-y divide-slate-100">
+            {users.map((account) => (
+              <li
+                key={account.id}
+                className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:gap-4"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-slate-800">
+                    {account.displayName || account.email}
+                    {account.id === user?.id && <span className="ml-2 text-[11px] text-indigo-500">you</span>}
+                  </p>
+                  <p className="truncate text-[11px] text-slate-400">{account.email}</p>
+                </div>
+                <div className="flex items-center justify-between gap-3 sm:justify-end">
+                  <RoleBadge role={account.role} />
+                  <div className="flex items-center gap-2">
+                    {roleBusy === account.id && <Spinner className="h-3.5 w-3.5 text-indigo-600" />}
+                    <select
+                      className="input w-auto py-1.5 text-xs"
+                      value={account.role}
+                      disabled={roleBusy === account.id || account.id === user?.id}
+                      onChange={(event) => changeRole(account, event.target.value)}
+                      title={account.id === user?.id ? 'You cannot change your own role' : undefined}
+                      aria-label={`Role for ${account.email}`}
+                    >
+                      <option value="user">Student</option>
+                      <option value="admin">Office admin</option>
+                      <option value="super_admin">Super admin</option>
+                    </select>
+                  </div>
+                </div>
+              </li>
+            ))}
+            {!users.length && (
+              <li>
+                <EmptyState
+                  title={loading ? 'Loading accounts…' : 'No accounts yet'}
+                  description={loading ? undefined : 'Accounts appear after their first sign-in.'}
+                />
+              </li>
+            )}
+          </ul>
         </div>
       </section>
 

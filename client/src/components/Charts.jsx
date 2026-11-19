@@ -109,7 +109,7 @@ export function TokensPerHourChart({ hourly, color = 'indigo', height = 240 }) {
   };
 
   return (
-    <div style={{ height }}>
+    <div className="w-full" style={{ height }}>
       <Bar data={data} options={baseOptions('Tokens')} />
     </div>
   );
@@ -144,7 +144,7 @@ export function WaitTimeChart({ hourly, height = 240 }) {
   };
 
   return (
-    <div style={{ height }}>
+    <div className="w-full" style={{ height }}>
       <Line data={data} options={baseOptions('Minutes')} />
     </div>
   );
@@ -152,9 +152,9 @@ export function WaitTimeChart({ hourly, height = 240 }) {
 
 export function ChartCard({ title, subtitle, action, children }) {
   return (
-    <section className="card p-5">
+    <section className="card min-w-0 p-5">
       <div className="mb-4 flex items-start justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <h3 className="text-sm font-bold text-slate-900">{title}</h3>
           {subtitle && <p className="mt-0.5 text-xs text-slate-500">{subtitle}</p>}
         </div>

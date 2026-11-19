@@ -179,11 +179,6 @@ export function Admin() {
     }
   };
 
-  const peakLabel =
-    dailyStats && dailyStats.peakHour !== null && dailyStats.peakHour !== undefined
-      ? `${String(dailyStats.peakHour).padStart(2, '0')}:00`
-      : '—';
-
   return (
     <AppShell>
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -195,12 +190,14 @@ export function Admin() {
             Queue control
           </h1>
           <p className="mt-1 text-sm text-slate-500">
-            Call tokens, close the loop and review today&apos;s demand.
+            Call tokens, mark them served and review today&apos;s demand.
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <LiveBadge isRefreshing={queue.isRefreshing} lastUpdated={queue.lastUpdated} intervalMs={QUEUE_POLL} />
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+          <span className="hidden sm:inline-flex">
+            <LiveBadge isRefreshing={queue.isRefreshing} lastUpdated={queue.lastUpdated} intervalMs={QUEUE_POLL} />
+          </span>
           <label className="sr-only" htmlFor="admin-date">
             Date
           </label>
@@ -264,12 +261,12 @@ export function Admin() {
         )}
       </div>
 
-      <div className="mt-5 grid gap-5 lg:grid-cols-3">
+      <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-3">
         {/* Queue control */}
-        <div className="space-y-5 lg:col-span-2">
-          <section className={cx('overflow-hidden rounded-2xl border bg-white shadow-soft', color.border)}>
+        <div className="min-w-0 space-y-5 lg:col-span-2">
+          <section className={cx('min-w-0 overflow-hidden rounded-2xl border bg-white shadow-soft', color.border)}>
             <div className={cx('flex flex-wrap items-center justify-between gap-4 px-5 py-4', color.soft)}>
-              <div>
+              <div className="min-w-0">
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
                   Now serving · {service?.name || '—'}
                 </p>
@@ -287,14 +284,13 @@ export function Admin() {
                   {queue.data?.waitingCount ?? 0} waiting · avg service{' '}
                   {formatMinutes(queue.data?.averageServiceMinutes)} · new arrival ≈{' '}
                   {formatMinutes(queue.data?.estimatedWaitMinutes)}
-                </p>
-              </div>
+                </p>              </div>
 
               <button
                 type="button"
                 onClick={handleCallNext}
                 disabled={calling || !serviceId}
-                className="btn-primary relative shadow-lift"
+                className="btn-primary relative shrink-0 shadow-lift"
               >
                 {calling ? <Spinner className="h-4 w-4" /> : null}
                 Call next token
@@ -311,8 +307,8 @@ export function Admin() {
                     <th className="table-head w-12">#</th>
                     <th className="table-head">Token</th>
                     <th className="table-head">Student</th>
-                    <th className="table-head">Issued</th>
-                    <th className="table-head">Waited</th>
+                    <th className="table-head hidden md:table-cell">Issued</th>
+                    <th className="table-head hidden md:table-cell">Waited</th>
                     <th className="table-head">Status</th>
                     <th className="table-head text-right">Actions</th>
                   </tr>
@@ -329,8 +325,8 @@ export function Admin() {
                         <span className="font-medium text-slate-800">{token.userDisplayName}</span>
                         <span className="block text-[11px] text-slate-400">{token.userEmail}</span>
                       </td>
-                      <td className="table-cell text-slate-500">{formatTime(token.issuedAt)}</td>
-                      <td className="table-cell text-slate-500">
+                      <td className="table-cell hidden text-slate-500 md:table-cell">{formatTime(token.issuedAt)}</td>
+                      <td className="table-cell hidden text-slate-500 md:table-cell">
                         {token.waitMinutes !== null && token.waitMinutes !== undefined
                           ? formatMinutes(token.waitMinutes)
                           : relativeTime(token.issuedAt).replace(' ago', '')}
@@ -399,7 +395,7 @@ export function Admin() {
             </div>
           </section>
 
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+          <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
             <StatCard
               label="Issued"
               value={dailyStats ? dailyStats.totalIssued : '—'}
@@ -428,10 +424,9 @@ export function Admin() {
               tone="rose"
               icon={statIcons.alert}
             />
-            <StatCard label="Peak hour" value={peakLabel} hint="busiest issuance window" tone="slate" icon={statIcons.users} />
           </div>
 
-          <div className="grid gap-4 xl:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
             <ChartCard
               title="Tokens per hour"
               subtitle="Issued vs served, campus-local time"
@@ -455,7 +450,7 @@ export function Admin() {
         </div>
 
         {/* Right rail */}
-        <aside className="space-y-4">
+        <aside className="min-w-0 space-y-4">
           <section className="card p-5">
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-bold text-slate-900">Service settings</h2>
@@ -479,10 +474,6 @@ export function Admin() {
                 </div>
               ))}
             </dl>
-            <div className="mt-4 rounded-xl bg-slate-50 p-3 text-[11px] leading-relaxed text-slate-500">
-              Call-next is atomic: the oldest waiting token is claimed with a single database
-              operation, so two tellers can never call the same person.
-            </div>
           </section>
 
           <section className="card overflow-hidden">
@@ -545,11 +536,11 @@ export function Admin() {
                 <tr>
                   <th className="table-head">Token</th>
                   <th className="table-head">Student</th>
-                  <th className="table-head">Issued</th>
-                  <th className="table-head">Called</th>
-                  <th className="table-head">Served</th>
-                  <th className="table-head">Wait</th>
-                  <th className="table-head">Service</th>
+                  <th className="table-head hidden sm:table-cell">Issued</th>
+                  <th className="table-head hidden lg:table-cell">Called</th>
+                  <th className="table-head hidden lg:table-cell">Served</th>
+                  <th className="table-head hidden sm:table-cell">Wait</th>
+                  <th className="table-head hidden xl:table-cell">Service</th>
                   <th className="table-head">Status</th>
                 </tr>
               </thead>
@@ -561,11 +552,11 @@ export function Admin() {
                       <span className="font-medium text-slate-800">{row.userDisplayName}</span>
                       <span className="block text-[11px] text-slate-400">{row.userEmail}</span>
                     </td>
-                    <td className="table-cell text-slate-500">{formatTime(row.issuedAt)}</td>
-                    <td className="table-cell text-slate-500">{formatTime(row.calledAt)}</td>
-                    <td className="table-cell text-slate-500">{formatTime(row.servedAt)}</td>
-                    <td className="table-cell text-slate-500">{formatMinutes(row.waitMinutes)}</td>
-                    <td className="table-cell text-slate-500">{formatMinutes(row.serviceMinutes)}</td>
+                    <td className="table-cell hidden text-slate-500 sm:table-cell">{formatTime(row.issuedAt)}</td>
+                    <td className="table-cell hidden text-slate-500 lg:table-cell">{formatTime(row.calledAt)}</td>
+                    <td className="table-cell hidden text-slate-500 lg:table-cell">{formatTime(row.servedAt)}</td>
+                    <td className="table-cell hidden text-slate-500 sm:table-cell">{formatMinutes(row.waitMinutes)}</td>
+                    <td className="table-cell hidden text-slate-500 xl:table-cell">{formatMinutes(row.serviceMinutes)}</td>
                     <td className="table-cell">
                       <span className={cx('badge', statusMeta(row.status).tone)}>
                         {statusMeta(row.status).label}

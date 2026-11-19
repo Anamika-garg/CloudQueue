@@ -41,18 +41,22 @@ export function AppShell({ children, maxWidth = 'max-w-7xl' }) {
     setAccountOpen(false);
   }, [location.pathname]);
 
-  const links = [
-    { to: '/app', label: 'Dashboard', icon: icons.home },
-    { to: '/display', label: 'Display board', icon: icons.monitor },
-  ];
-  if (isAdmin) links.push({ to: '/admin', label: 'Admin console', icon: icons.sliders });
+  const links = isAdmin
+    ? [
+        { to: '/admin', label: 'Admin console', icon: icons.sliders },
+        { to: '/display', label: 'Display board', icon: icons.monitor },
+      ]
+    : [
+        { to: '/app', label: 'Dashboard', icon: icons.home },
+        { to: '/display', label: 'Display board', icon: icons.monitor },
+      ];
   if (isSuperAdmin) links.push({ to: '/admin/services', label: 'Services', icon: icons.shield });
 
   return (
     <div className="min-h-screen bg-slate-50">
       <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/85 backdrop-blur-lg">
         <div className={cx('mx-auto flex h-16 items-center gap-3 px-4 sm:px-6', maxWidth)}>
-          <Link to="/app" className="shrink-0" aria-label="CloudQueue home">
+          <Link to={isAdmin ? '/admin' : '/app'} className="shrink-0" aria-label="CloudQueue home">
             <Logo withWordmark className="h-8 w-8" />
           </Link>
 

@@ -20,13 +20,13 @@ export function ActiveTokenCard({ token, service, onCancel, busy }) {
       <div className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-white/10" />
       <div className="pointer-events-none absolute -bottom-24 -left-10 h-56 w-56 rounded-full bg-black/10" />
 
-      <div className="relative flex items-start justify-between gap-4">
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/70">
+      <div className="relative flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-[11px] font-semibold uppercase tracking-[0.18em] text-white/70">
             Your token · {service?.name}
           </p>
-          <div className="mt-1 flex items-baseline gap-3">
-            <span className="font-display text-5xl font-extrabold tracking-tight sm:text-6xl">
+          <div className="mt-1 flex flex-wrap items-baseline gap-2 sm:gap-3">
+            <span className="font-display text-4xl font-extrabold tracking-tight sm:text-6xl">
               {token.tokenNumber}
             </span>
             <span
@@ -55,21 +55,21 @@ export function ActiveTokenCard({ token, service, onCancel, busy }) {
         </button>
       </div>
 
-      <div className="relative mt-6 grid grid-cols-3 gap-3">
-        <div className="rounded-xl bg-white/10 px-3 py-3 backdrop-blur">
+      <div className="relative mt-6 grid grid-cols-3 gap-2 sm:gap-3">
+        <div className="rounded-xl bg-white/10 px-2 py-3 backdrop-blur sm:px-3">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-white/60">Position</p>
-          <p className="mt-1 text-2xl font-bold">
+          <p className="mt-1 text-lg font-bold sm:text-2xl">
             {isServing ? 'Now' : token.position ?? '—'}
             {!isServing && token.position > 1 && <span className="text-sm font-medium text-white/60"> in line</span>}
           </p>
         </div>
-        <div className="rounded-xl bg-white/10 px-3 py-3 backdrop-blur">
+        <div className="rounded-xl bg-white/10 px-2 py-3 backdrop-blur sm:px-3">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-white/60">Est. wait</p>
-          <p className="mt-1 text-2xl font-bold">{isServing ? '0 min' : formatMinutes(token.estimatedWaitMinutes)}</p>
+          <p className="mt-1 text-lg font-bold sm:text-2xl">{isServing ? '0 min' : formatMinutes(token.estimatedWaitMinutes)}</p>
         </div>
-        <div className="rounded-xl bg-white/10 px-3 py-3 backdrop-blur">
+        <div className="rounded-xl bg-white/10 px-2 py-3 backdrop-blur sm:px-3">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-white/60">Now serving</p>
-          <p className="mono-token mt-1 text-2xl font-bold">{token.currentServingToken || '—'}</p>
+          <p className="mono-token mt-1 text-lg font-bold sm:text-2xl">{token.currentServingToken || '—'}</p>
         </div>
       </div>
 

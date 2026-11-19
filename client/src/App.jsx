@@ -27,6 +27,12 @@ function RequireRole({ roles, children }) {
   return children;
 }
 
+/** Staff accounts work from the admin console, not the student token page. */
+function StudentHome() {
+  const { isAdmin } = useAuth();
+  return isAdmin ? <Navigate to="/admin" replace /> : <Dashboard />;
+}
+
 export default function App() {
   return (
     <Routes>
@@ -36,7 +42,7 @@ export default function App() {
         path="/app"
         element={
           <RequireAuth>
-            <Dashboard />
+            <StudentHome />
           </RequireAuth>
         }
       />

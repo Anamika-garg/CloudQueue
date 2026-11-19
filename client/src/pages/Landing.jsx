@@ -110,7 +110,7 @@ function SignInCard() {
   };
 
   return (
-    <div className="relative w-full max-w-md">
+    <div className="relative w-full min-w-0 max-w-md">
       <div className="absolute -inset-3 -z-10 rounded-[28px] bg-gradient-to-br from-indigo-500/15 via-sky-400/10 to-transparent blur-xl" />
       <div className="rounded-3xl border border-white/60 bg-white/95 p-6 shadow-lift backdrop-blur sm:p-7">
         <div className="flex items-center justify-between">
@@ -364,12 +364,12 @@ function SignInCard() {
 }
 
 export function Landing() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isAdmin } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (isAuthenticated) navigate('/app', { replace: true });
-  }, [isAuthenticated, navigate]);
+    if (isAuthenticated) navigate(isAdmin ? '/admin' : '/app', { replace: true });
+  }, [isAuthenticated, isAdmin, navigate]);
 
   return (
     <div className="min-h-screen overflow-hidden bg-white">
@@ -395,8 +395,8 @@ export function Landing() {
       </header>
 
       <main className="mx-auto max-w-7xl px-4 pb-16 sm:px-6">
-        <section className="grid items-center gap-12 py-8 lg:grid-cols-[1.1fr_0.9fr] lg:gap-16 lg:py-14">
-          <div className="animate-fade-up">
+        <section className="grid grid-cols-1 items-center gap-12 py-8 lg:grid-cols-[1.1fr_0.9fr] lg:gap-16 lg:py-14">
+          <div className="min-w-0 animate-fade-up">
             <span className="inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-white/80 px-3 py-1.5 text-xs font-semibold text-indigo-700 shadow-sm">
               <span className="relative flex h-2 w-2">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-indigo-400 opacity-75" />
@@ -448,7 +448,7 @@ export function Landing() {
             </div>
           </div>
 
-          <div className="flex justify-center lg:justify-end">
+          <div className="flex min-w-0 justify-center lg:justify-end">
             <SignInCard />
           </div>
         </section>
