@@ -9,8 +9,12 @@ const { dateKeyFor } = require('../lib/dateKey');
  * Produces a believable campus day - four offices, ~90 tokens spread over the
  * last three days, one token currently being served per office and a couple
  * waiting - so the dashboards, charts and display board are populated the
- * moment the app boots in demo mode. The same routine powers `npm run seed`
- * against MongoDB Atlas.
+ * moment the app boots. The same routine powers `npm run seed` against MongoDB
+ * Atlas and the automatic bootstrap of a production deployment.
+ *
+ * The seed is idempotent: before writing it clears the demo services' tokens and
+ * queue counters for the three-day window, so restarting never doubles the data
+ * or shifts token numbers.
  */
 
 const DEMO_USERS = [
@@ -83,7 +87,7 @@ async function seedActivity(store) {
 
   // 1. Users ---------------------------------------------------------------
   const users = {};
-  for (const [index, demo] of DEMO_USERS.entries()) {
+  for (const demo of DEMO_USERS) {
     const user = await store.users.upsertFromAuth({
       firebaseUid: `demo_${demo.email.replace(/[^a-z0-9]/gi, '_')}`,
       email: demo.email,
@@ -94,8 +98,6 @@ async function seedActivity(store) {
     } else {
       users[demo.email] = user;
     }
-    // Slight stagger so "recent users" lists are not all identical.
-    if (user.createdAt) user.createdAt = new Date(now.getTime() - (index + 1) * 86400000);
   }
 
   // 2. Services ------------------------------------------------------------
@@ -140,15 +142,22 @@ async function seedActivity(store) {
   }
 
   // 4. Materialise tokens ---------------------------------------------------
-  let created = 0;
+  // Everything is built in memory first and written with a couple of bulk
+  // operations. That keeps the seeder fast enough to run inside a serverless
+  // request (Vercel functions have a hard duration limit).
+  const documents = [];
+  const dailyStates = [];
+
   for (const group of groups.values()) {
     const rows = group.rows.sort((a, b) => a.issuedAt - b.issuedAt);
     const isToday = group.dateKey === todayKey;
     const liveCount = isToday ? Math.min(3, rows.length) : 0;
     const firstLiveIndex = rows.length - liveCount;
+    let servingNumber = null;
+    let servingCalledAt = null;
 
     for (let index = 0; index < rows.length; index += 1) {
-      const sequence = await store.queue.nextSequence(group.service.id, group.dateKey);
+      const sequence = index + 1;
       const tokenNumber = `${group.service.code}-${pad3(sequence)}`;
 
       // Give the demo student a realistic personal history, never a live token
@@ -184,6 +193,8 @@ async function seedActivity(store) {
 
       if (status === 'serving') {
         calledAt = new Date(now.getTime() - (1 + random() * 4) * 60000);
+        servingNumber = tokenNumber;
+        servingCalledAt = calledAt;
       } else if (status === 'served' || status === 'no_show') {
         calledAt = new Date(rows[index].issuedAt.getTime() + waitMinutes * 60000);
         if (calledAt > now) calledAt = new Date(now.getTime() - 5 * 60000);
@@ -208,7 +219,7 @@ async function seedActivity(store) {
           ? Math.round(((servedAt - calledAt) / 60000) * 10) / 10
           : null;
 
-      const token = await store.tokens.create({
+      documents.push({
         tokenNumber,
         serviceId: group.service.id,
         serviceCode: group.service.code,
@@ -228,22 +239,86 @@ async function seedActivity(store) {
         serviceMinutes: actualService,
         cancelledBy: status === 'cancelled' ? 'user' : null,
       });
-
-      if (status === 'serving') {
-        await store.queue.setServing(group.service.id, group.dateKey, token.id, token.calledAt || now);
-      }
-      created += 1;
     }
+
+    dailyStates.push({
+      service: group.service,
+      dateKey: group.dateKey,
+      lastIssuedSequence: rows.length,
+      servingNumber,
+      servingCalledAt,
+    });
+  }
+
+  // 5. Reset the demo window, then bulk insert ------------------------------
+  const serviceIds = [...new Set(dailyStates.map((state) => state.service.id))];
+  const dateKeys = [...new Set(dailyStates.map((state) => state.dateKey))];
+
+  await store.tokens.deleteByServiceDates(serviceIds, dateKeys);
+  await store.queue.reset(serviceIds, dateKeys);
+
+  const inserted = await store.tokens.createMany(documents);
+  const byNumber = new Map(
+    inserted.map((token) => [`${token.serviceCode}:${token.dateKey}:${token.tokenNumber}`, token])
+  );
+
+  for (const state of dailyStates) {
+    const serving = state.servingNumber
+      ? byNumber.get(`${state.service.code}:${state.dateKey}:${state.servingNumber}`)
+      : null;
+    await store.queue.setState(state.service.id, state.dateKey, {
+      lastIssuedSequence: state.lastIssuedSequence,
+      currentServingTokenId: serving ? serving.id : null,
+      lastCalledAt: serving ? state.servingCalledAt : null,
+    });
   }
 
   await store.audit.log({
-    action: 'service.create',
+    action: 'dataset.seed',
     performedBy: { userId: 'seed', email: 'system@cloudqueue', role: 'super_admin' },
     target: { type: 'seed', id: null, label: 'Demo dataset' },
-    metadata: { services: Object.keys(services).length, tokens: created },
+    metadata: {
+      dateKey: todayKey,
+      services: Object.keys(services).length,
+      tokens: inserted.length,
+    },
   });
 
-  return { users: Object.keys(users).length, services: Object.keys(services).length, tokens: created };
+  return {
+    users: Object.keys(users).length,
+    services: Object.keys(services).length,
+    tokens: inserted.length,
+    dateKey: todayKey,
+  };
 }
 
-module.exports = { seedActivity, DEMO_USERS, DEMO_SERVICES };
+/**
+ * Seeds the demo dataset at most once per campus day.
+ *
+ * - In demo mode / when SEED_DEMO_DATA=true the data is refreshed daily.
+ * - Otherwise an empty deployment is bootstrapped once so it never looks broken.
+ * - `store.seeds.claim` is an atomic lock, so parallel serverless instances do
+ *   not seed at the same time.
+ */
+async function ensureDemoDataset(store, { force = config.seedDemoData } = {}) {
+  const todayKey = dateKeyFor(new Date(), config.timezone);
+
+  if (!force) {
+    const services = await store.services.list({ includeInactive: true });
+    if (services.length) return { skipped: true, reason: 'database already initialised' };
+  }
+
+  const claimed = await store.seeds.claim(todayKey);
+  if (!claimed) return { skipped: true, reason: 'already seeded today' };
+
+  try {
+    const result = await seedActivity(store);
+    await store.seeds.complete(todayKey, result);
+    return result;
+  } catch (error) {
+    await store.seeds.release(todayKey);
+    throw error;
+  }
+}
+
+module.exports = { seedActivity, ensureDemoDataset, DEMO_USERS, DEMO_SERVICES };

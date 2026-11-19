@@ -9,6 +9,7 @@ const { authLimiter } = require('../middleware/rateLimit');
 const { validate } = require('../middleware/validate');
 const { demoLogin } = require('../validation/schemas');
 const { recordAudit } = require('../services/audit');
+const { DEMO_USERS } = require('../db/seed');
 
 const router = express.Router();
 
@@ -97,19 +98,23 @@ router.get(
   '/demo-accounts',
   asyncHandler(async (req, res) => {
     if (!config.demoMode) return res.json({ accounts: [] });
+
+    // Always expose the canonical seeded personas (one per role plus the other
+    // students) so the sign-in screen is stable even when the shared database
+    // contains unrelated or duplicated accounts.
     const store = await getStore();
     const users = await store.users.list();
+    const byEmail = new Map(users.map((user) => [user.email, user]));
+
     res.json({
-      accounts: users
-        .slice()
-        .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
-        .filter((user) => ['admin', 'super_admin'].includes(user.role) || user.role === 'user')
-        .slice(0, 8)
-        .map((user) => ({
-          email: user.email,
-          displayName: user.displayName,
-          role: user.role,
-        })),
+      accounts: DEMO_USERS.map((demo) => {
+        const stored = byEmail.get(demo.email);
+        return {
+          email: demo.email,
+          displayName: (stored && stored.displayName) || demo.displayName,
+          role: (stored && stored.role) || demo.role,
+        };
+      }),
     });
   })
 );

@@ -3,7 +3,6 @@
 const crypto = require('crypto');
 const { config } = require('../config/env');
 const { dateKeyFor } = require('../lib/dateKey');
-const { seedActivity } = require('./seed');
 
 /**
  * In-memory adapter.
@@ -30,6 +29,8 @@ function createMemoryCollections() {
     queueStates: [],
     auditLogs: [],
     dailyStats: [],
+    seedMarks: new Set(),
+    seedResults: new Map(),
   };
 }
 
@@ -294,6 +295,39 @@ async function createMemoryStore() {
         }
       }
     },
+
+    /** Bulk insert used by the demo seeder. */
+    async createMany(rows) {
+      const now = new Date();
+      const created = rows.map((row) => ({
+        id: newId(),
+        status: 'waiting',
+        calledAt: null,
+        servedAt: null,
+        completedAt: null,
+        cancelledBy: null,
+        notes: '',
+        positionAtIssue: 1,
+        waitMinutes: null,
+        serviceMinutes: null,
+        createdAt: now,
+        updatedAt: now,
+        ...row,
+      }));
+      db.tokens.push(...created);
+      return created.map(clone);
+    },
+
+    /** Reset helper for re-runnable seeding. */
+    async deleteByServiceDates(serviceIds, dateKeys) {
+      const services = new Set(serviceIds.map(String));
+      const days = new Set(dateKeys);
+      const before = db.tokens.length;
+      db.tokens = db.tokens.filter(
+        (token) => !(services.has(String(token.serviceId)) && days.has(token.dateKey))
+      );
+      return before - db.tokens.length;
+    },
   };
 
   const queue = {
@@ -359,6 +393,39 @@ async function createMemoryStore() {
       state.updatedAt = new Date();
       return clone(state);
     },
+
+    /** Absolute counter write used by the seeder (never used at runtime). */
+    async setState(serviceId, dateKey, patch) {
+      const now = new Date();
+      let state = db.queueStates.find(
+        (row) => row.serviceId === serviceId && row.dateKey === dateKey
+      );
+      if (!state) {
+        state = {
+          id: newId(),
+          serviceId,
+          dateKey,
+          lastIssuedSequence: 0,
+          currentServingTokenId: null,
+          lastCalledAt: null,
+          createdAt: now,
+          updatedAt: now,
+        };
+        db.queueStates.push(state);
+      }
+      Object.assign(state, patch, { updatedAt: now });
+      return clone(state);
+    },
+
+    async reset(serviceIds, dateKeys) {
+      const services = new Set(serviceIds.map(String));
+      const days = new Set(dateKeys);
+      const before = db.queueStates.length;
+      db.queueStates = db.queueStates.filter(
+        (row) => !(services.has(String(row.serviceId)) && days.has(row.dateKey))
+      );
+      return before - db.queueStates.length;
+    },
   };
 
   const audit = {
@@ -398,6 +465,27 @@ async function createMemoryStore() {
     },
   };
 
+  const seeds = {
+    async claim(dateKey) {
+      if (db.seedMarks.has(dateKey)) return false;
+      db.seedMarks.add(dateKey);
+      return true;
+    },
+    async complete(dateKey, result) {
+      db.seedResults.set(dateKey, result || {});
+    },
+    async release(dateKey) {
+      db.seedMarks.delete(dateKey);
+      db.seedResults.delete(dateKey);
+    },
+    async latest() {
+      const entries = [...db.seedResults.entries()];
+      if (!entries.length) return null;
+      const [dateKey, result] = entries[entries.length - 1];
+      return { dateKey, result };
+    },
+  };
+
   const store = {
     kind: 'memory',
     users,
@@ -406,6 +494,7 @@ async function createMemoryStore() {
     queue,
     audit,
     stats,
+    seeds,
     /** Internal handles used by the demo seeder and the smoke tests. */
     _db: db,
     async ping() {
@@ -413,8 +502,6 @@ async function createMemoryStore() {
     },
     async close() {},
   };
-
-  if (config.demoMode) await seedActivity(store);
 
   return store;
 }

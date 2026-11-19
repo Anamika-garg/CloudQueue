@@ -48,6 +48,16 @@ const config = {
   demoJwtSecret: process.env.DEMO_JWT_SECRET || 'cloudqueue-demo-secret-change-me',
   demoTokenTtl: '12h',
 
+  // Populate the database with the deterministic demo dataset (offices, staff
+  // accounts and three days of tokens).
+  //   - demo mode            -> on by default, refreshed once per day
+  //   - Firebase production  -> off by default, enable with SEED_DEMO_DATA=true
+  // Even when this is off, a completely empty database is bootstrapped with the
+  // demo dataset so a fresh deployment never renders a blank dashboard.
+  seedDemoData: process.env.SEED_DEMO_DATA
+    ? bool(process.env.SEED_DEMO_DATA)
+    : demoMode,
+
   superAdminEmails: (process.env.SUPER_ADMIN_EMAILS || '')
     .split(',')
     .map((email) => email.trim().toLowerCase())

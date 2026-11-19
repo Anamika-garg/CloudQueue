@@ -15,6 +15,7 @@ const ACTIONS = [
   'auth.sync',
   'auth.demo_login',
   'user.role_update',
+  'dataset.seed',
 ];
 
 /**

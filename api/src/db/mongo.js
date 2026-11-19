@@ -9,6 +9,7 @@ const Token = require('../models/Token');
 const QueueState = require('../models/QueueState');
 const AuditLog = require('../models/AuditLog');
 const DailyStat = require('../models/DailyStat');
+const SeedState = require('../models/SeedState');
 
 /**
  * MongoDB Atlas adapter - the production path.
@@ -290,6 +291,23 @@ async function createMongoStore() {
     async deleteAllForDate(serviceId, dateKey) {
       await Token.deleteMany({ serviceId, dateKey });
     },
+
+    /** Bulk insert used by the demo seeder (one round trip instead of N). */
+    async createMany(rows) {
+      if (!rows.length) return [];
+      const docs = await Token.insertMany(rows, { ordered: false });
+      return docs.map(serializeToken);
+    },
+
+    /** Reset helper so re-seeding never duplicates tokens. */
+    async deleteByServiceDates(serviceIds, dateKeys) {
+      if (!serviceIds.length || !dateKeys.length) return 0;
+      const result = await Token.deleteMany({
+        serviceId: { $in: serviceIds },
+        dateKey: { $in: dateKeys },
+      });
+      return result.deletedCount || 0;
+    },
   };
 
   const queue = {
@@ -352,6 +370,32 @@ async function createMongoStore() {
         ? { id: String(state._id), currentServingTokenId: asId(state.currentServingTokenId) }
         : null;
     },
+
+    /** Absolute counter write used by the seeder (never used at runtime). */
+    async setState(serviceId, dateKey, patch) {
+      const state = await QueueState.findOneAndUpdate(
+        { serviceId, dateKey },
+        { $set: patch },
+        { new: true, upsert: true, setDefaultsOnInsert: true }
+      ).lean();
+      return {
+        id: String(state._id),
+        serviceId: asId(state.serviceId),
+        dateKey: state.dateKey,
+        lastIssuedSequence: state.lastIssuedSequence,
+        currentServingTokenId: asId(state.currentServingTokenId),
+        lastCalledAt: state.lastCalledAt || null,
+      };
+    },
+
+    async reset(serviceIds, dateKeys) {
+      if (!serviceIds.length || !dateKeys.length) return 0;
+      const result = await QueueState.deleteMany({
+        serviceId: { $in: serviceIds },
+        dateKey: { $in: dateKeys },
+      });
+      return result.deletedCount || 0;
+    },
   };
 
   const audit = {
@@ -377,6 +421,34 @@ async function createMongoStore() {
     },
   };
 
+  const seeds = {
+    /** Atomic once-per-day lock: the unique dateKey index decides the winner. */
+    async claim(dateKey) {
+      try {
+        await SeedState.create({ dateKey });
+        return true;
+      } catch (error) {
+        if (error && error.code === 11000) return false;
+        throw error;
+      }
+    },
+    async complete(dateKey, result) {
+      await SeedState.updateOne(
+        { dateKey },
+        { $set: { seededAt: new Date(), result: result || {} } }
+      );
+    },
+    async release(dateKey) {
+      await SeedState.deleteOne({ dateKey });
+    },
+    async latest() {
+      const doc = await SeedState.findOne().sort({ seededAt: -1 }).lean();
+      return doc
+        ? { dateKey: doc.dateKey, seededAt: doc.seededAt, result: doc.result || {} }
+        : null;
+    },
+  };
+
   return {
     kind: 'mongo',
     users,
@@ -385,6 +457,7 @@ async function createMongoStore() {
     queue,
     audit,
     stats,
+    seeds,
     async ping() {
       return mongoose.connection.readyState === 1;
     },

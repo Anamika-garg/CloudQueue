@@ -234,13 +234,13 @@ npm run client:dev
 
 Then use **http://localhost:5173**. Vite proxies `/api` to `http://localhost:4000` (see `client/vite.config.js`).
 
-> Demo mode is auto-enabled when Firebase credentials are absent, and the in-memory store is used when `MONGODB_URI` is empty. Restarting the server reseeds a deterministic three-day dataset, so demos and screenshots look the same every time.
+> Demo mode is auto-enabled when Firebase credentials are absent, and the in-memory store is used when `MONGODB_URI` is empty. The first boot writes a deterministic three-day dataset (and refreshes it once per campus day), so demos and screenshots look the same every time.
 
 ---
 
 ## Demo accounts
 
-In demo mode any email signs in without a password. The login screen offers one persona per role; these are the seeded accounts used by the demo script:
+In demo mode any email signs in without a password. The login screen offers one persona per role; these are the seeded accounts used by the demo script and by the read-only demo on the deployed site:
 
 | Role | Email | Name | Lands on |
 |---|---|---|---|
@@ -249,6 +249,8 @@ In demo mode any email signs in without a password. The login screen offers one 
 | `super_admin` | `super@campus.edu` | Daniel Osei | `/admin` + Services link |
 
 Additional seeded students (`fatima@`, `marcus@`, `lena@`, `yusuf@campus.edu`) populate the queue and history. The primary student has history but **never a live token**, so the "get a token" walkthrough always starts clean.
+
+`GET /api/auth/demo-accounts` always returns these seven canonical personas (merged with any stored display name or role), so the sign-in screen does not pick up unrelated accounts from a shared database.
 
 ---
 
@@ -261,6 +263,7 @@ Additional seeded students (`fatima@`, `marcus@`, `lena@`, `yusuf@campus.edu`) p
 | Token lifetime | 12 hours, stored in `sessionStorage` | Firebase-managed, short-lived and auto-refreshed |
 | Password | Ignored | Enforced by Firebase |
 | Database | In-memory (unless `MONGODB_URI` is set) | MongoDB Atlas |
+| Demo dataset | Refreshed automatically | Refreshed automatically when `SEED_DEMO_DATA=true`; otherwise only bootstrapped into an empty database |
 | `/api/auth/demo-login` | Available | Returns `404` |
 | Intended use | Local review, grading, demos | Real deployment |
 
@@ -286,6 +289,7 @@ Copy `.env.example` to `.env` at the repository root. On Vercel, add the same ke
 | `FIREBASE_PRIVATE_KEY` | Production | empty | Service-account private key; keep `\n` escapes |
 | `SUPER_ADMIN_EMAILS` | No | empty | Comma-separated emails promoted to `super_admin` on first sign-in |
 | `DEMO_MODE` | No | auto | `true` forces demo auth; `false` forces Firebase |
+| `SEED_DEMO_DATA` | No | follows `DEMO_MODE` | `true` writes/refreshes the deterministic demo dataset once per campus day. Set to `true` on a graded deployment so the dashboards are never empty |
 | `DEMO_JWT_SECRET` | Demo only | insecure default | HMAC secret for demo sessions. **Always override before exposing a demo publicly** |
 | `DISABLE_RATE_LIMIT` | No | `false` | Bypasses rate limits (local load tests only) |
 
@@ -321,7 +325,7 @@ The repository is deployment-ready. Three managed services are required.
    - Simplest demo: allow `0.0.0.0/0`.
    - Stronger: allow only Vercel egress ranges, or use **Atlas Private Endpoint / VPC peering** on a paid tier. Serverless egress IPs are not guaranteed on the free plan, which is why the template documents the open-IP trade-off explicitly.
 3. Copy the SRV connection string, append `/cloudqueue?retryWrites=true&w=majority`, and store it as `MONGODB_URI`.
-4. Seed the database once from your machine:
+4. Demo data is written automatically on first request (see below). You can also run it manually:
 
    ```bash
    # PowerShell
@@ -330,7 +334,16 @@ The repository is deployment-ready. Three managed services are required.
    npm run seed
    ```
 
-   The seed is idempotent for services and users and adds three days of realistic tokens. It is optional — the app works with an empty database after an admin creates services.
+   The seeder is idempotent: it clears the demo offices' tokens for the three-day window before inserting, so restarts never duplicate tickets or shift token numbers.
+
+### Automatic demo dataset
+
+The API seeds the fictional campus dataset on startup, before the first request is served:
+
+- **`DEMO_MODE=true` or `SEED_DEMO_DATA=true`** → the data is refreshed **once per campus day**, including in production.
+- **Otherwise** → a completely empty database is bootstrapped once, so a fresh deployment never renders blank dashboards.
+
+A `seedstates` collection stores one marker per campus day (`unique` index). Concurrent serverless instances race to claim that marker, so only one seeder runs and the data is never written twice. The deployed site therefore shows the same services, queue and charts as the local demo.
 
 ### 2. Firebase Authentication
 
@@ -344,16 +357,19 @@ The repository is deployment-ready. Three managed services are required.
 ### 3. Vercel
 
 1. Import the repository into Vercel.
-2. Framework preset: **Other**. `vercel.json` already declares:
-   - `api/index.js` → `@vercel/node` with `maxDuration: 10`
-   - root `package.json` → `@vercel/static-build` with `distDir: client/dist`
-   - `/api/*` → the function, then filesystem, then SPA fallback to `/index.html`
+2. Framework preset: **Other**. `vercel.json` declares the modern build settings:
+   - `buildCommand: "npm run build"` and `outputDirectory: "client/dist"`
+   - `api/index.js` → a Node serverless function with `maxDuration: 30`
+   - `/api/*` → the function, and every other path → `/index.html` (SPA fallback)
+   The fallback is what makes a deep link such as `/admin` return `200` instead of `404` on refresh or direct navigation.
 3. Add all server and client environment variables for **Production** (and Preview if desired).
 4. Set `FRONTEND_ORIGIN` to the final deployment origin, for example `https://your-project.vercel.app`. Same-origin browser requests still send an `Origin` header on some methods, so the deployed origin must be listed.
-5. Deploy. Verify:
+5. Set `SEED_DEMO_DATA=true` (and an explicit `CAMPUS_TIMEZONE`) so the demo dataset appears on the deployed site. Leave `DEMO_MODE=false` when Firebase is configured.
+6. Deploy. Verify:
    - `https://<app>/api/health` → `status: "ok"`, `database: "mongodb-atlas"`, `authMode: "firebase"`
+   - `https://<app>/admin` refreshed directly → `200` (no 404)
    - Sign in with a Firebase account, then promote roles from the Services & access page or via `SUPER_ADMIN_EMAILS`.
-6. Re-deploy after changing any build-time `VITE_*` variable — Vite inlines them at build time.
+7. Re-deploy after changing any build-time `VITE_*` variable — Vite inlines them at build time.
 
 ### Deployment checklist
 
@@ -365,6 +381,7 @@ The repository is deployment-ready. Three managed services are required.
 - [ ] Vercel domain added to Firebase authorized domains
 - [ ] `FRONTEND_ORIGIN` matches the deployed origin
 - [ ] `CAMPUS_TIMEZONE` set explicitly
+- [ ] `SEED_DEMO_DATA=true` so the demo dataset is visible in production
 - [ ] `DEMO_MODE=false`
 - [ ] `DEMO_JWT_SECRET` rotated or demo sign-in disabled
 - [ ] `SUPER_ADMIN_EMAILS` set for the first administrator
