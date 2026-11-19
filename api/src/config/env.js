@@ -45,6 +45,10 @@ const config = {
   },
 
   demoMode,
+  // Demo persona logins are always available in demo mode. When Firebase is
+  // configured they stay off unless ALLOW_DEMO_LOGIN=true, which is handy for
+  // a public graded deployment that should also show the seeded personas.
+  demoLoginEnabled: demoMode || bool(process.env.ALLOW_DEMO_LOGIN),
   demoJwtSecret: process.env.DEMO_JWT_SECRET || 'cloudqueue-demo-secret-change-me',
   demoTokenTtl: '12h',
 

@@ -42,6 +42,7 @@ function SignInCard() {
   const {
     mode,
     demoAccounts,
+    demoLoginEnabled,
     signInDemo,
     signInEmail,
     registerEmail,
@@ -65,6 +66,8 @@ function SignInCard() {
       .map((role) => source.find((account) => account.role === role))
       .filter(Boolean);
   }, [demoAccounts]);
+
+  const showDemoAccounts = mode === 'demo' || demoLoginEnabled;
 
   const go = (user) => {
     navigate(user && ['admin', 'super_admin'].includes(user.role) ? '/admin' : '/app', {
@@ -118,20 +121,28 @@ function SignInCard() {
           <span
             className={cx(
               'badge',
-              mode === 'demo' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
+              mode === 'demo' || demoLoginEnabled
+                ? 'bg-amber-100 text-amber-700'
+                : 'bg-emerald-100 text-emerald-700'
             )}
           >
-            {mode === 'demo' ? 'Demo' : mode === 'firebase' ? 'Live' : '…'}
+            {mode === 'demo' ? 'Demo' : demoLoginEnabled ? 'Demo + Live' : mode === 'firebase' ? 'Live' : '…'}
           </span>
         </div>
 
         <h2 className="mt-5 font-display text-xl font-extrabold tracking-tight text-slate-900">
-          {mode === 'demo' ? 'Enter the demo campus' : 'Sign in to CloudQueue'}
+          {mode === 'demo'
+            ? 'Enter the demo campus'
+            : demoLoginEnabled
+              ? 'Try the demo campus'
+              : 'Sign in to CloudQueue'}
         </h2>
         <p className="mt-1 text-sm text-slate-500">
           {mode === 'demo'
             ? 'Choose a persona to explore both sides of the queue. No password required in demo mode.'
-            : 'Use your campus email or Google account. Roles are assigned by the administrator.'}
+            : demoLoginEnabled
+              ? 'Pick a demo persona to explore instantly, or sign in with a real campus account.'
+              : 'Use your campus email or Google account. Roles are assigned by the administrator.'}
         </p>
 
         {notice && (
@@ -146,58 +157,60 @@ function SignInCard() {
           </div>
         )}
 
+        {showDemoAccounts && (
+          <div className="mt-5 space-y-2">
+            {quickAccounts.map((account) => (
+              <button
+                key={account.email}
+                type="button"
+                onClick={() => handleDemo(account)}
+                disabled={Boolean(busy)}
+                className="group flex w-full items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-left transition hover:border-indigo-300 hover:bg-indigo-50/40 disabled:opacity-60"
+              >
+                <span
+                  className={cx(
+                    'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[11px] font-bold',
+                    account.role === 'super_admin'
+                      ? 'bg-violet-100 text-violet-700'
+                      : account.role === 'admin'
+                        ? 'bg-indigo-100 text-indigo-700'
+                        : 'bg-slate-100 text-slate-600'
+                  )}
+                >
+                  {account.displayName
+                    ?.split(' ')
+                    .map((part) => part[0])
+                    .join('')
+                    .slice(0, 2)}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-semibold text-slate-900">
+                    {account.displayName || account.email}
+                  </span>
+                  <span className="block truncate text-xs text-slate-500">
+                    {ROLE_LABELS[account.role]} · {account.email}
+                  </span>
+                </span>
+                {busy === account.email ? (
+                  <Spinner className="h-4 w-4 text-indigo-600" />
+                ) : (
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    className="h-4 w-4 text-slate-300 transition group-hover:text-indigo-500"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14m0 0-5-5m5 5-5 5" />
+                  </svg>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
+
         {mode === 'demo' ? (
           <>
-            <div className="mt-5 space-y-2">
-              {quickAccounts.map((account) => (
-                <button
-                  key={account.email}
-                  type="button"
-                  onClick={() => handleDemo(account)}
-                  disabled={Boolean(busy)}
-                  className="group flex w-full items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-left transition hover:border-indigo-300 hover:bg-indigo-50/40 disabled:opacity-60"
-                >
-                  <span
-                    className={cx(
-                      'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[11px] font-bold',
-                      account.role === 'super_admin'
-                        ? 'bg-violet-100 text-violet-700'
-                        : account.role === 'admin'
-                          ? 'bg-indigo-100 text-indigo-700'
-                          : 'bg-slate-100 text-slate-600'
-                    )}
-                  >
-                    {account.displayName
-                      ?.split(' ')
-                      .map((part) => part[0])
-                      .join('')
-                      .slice(0, 2)}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-semibold text-slate-900">
-                      {account.displayName || account.email}
-                    </span>
-                    <span className="block truncate text-xs text-slate-500">
-                      {ROLE_LABELS[account.role]} · {account.email}
-                    </span>
-                  </span>
-                  {busy === account.email ? (
-                    <Spinner className="h-4 w-4 text-indigo-600" />
-                  ) : (
-                    <svg
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      className="h-4 w-4 text-slate-300 transition group-hover:text-indigo-500"
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14m0 0-5-5m5 5-5 5" />
-                    </svg>
-                  )}
-                </button>
-              ))}
-            </div>
-
             <div className="my-5 flex items-center gap-3">
               <span className="h-px flex-1 bg-slate-200" />
               <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
@@ -233,7 +246,21 @@ function SignInCard() {
           </>
         ) : (
           <>
-            <div className="mt-5 grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1">
+            {showDemoAccounts && (
+              <div className="my-5 flex items-center gap-3">
+                <span className="h-px flex-1 bg-slate-200" />
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                  or use a campus account
+                </span>
+                <span className="h-px flex-1 bg-slate-200" />
+              </div>
+            )}
+            <div
+              className={cx(
+                'grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1',
+                showDemoAccounts ? '' : 'mt-5'
+              )}
+            >
               <button
                 type="button"
                 onClick={() => setTab('signin')}

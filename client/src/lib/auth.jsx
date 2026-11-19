@@ -26,6 +26,7 @@ export function AuthProvider({ children }) {
   const [status, setStatus] = useState('loading');
   const [user, setUser] = useState(null);
   const [mode, setMode] = useState(null);
+  const [demoLoginEnabled, setDemoLoginEnabled] = useState(false);
   const [notice, setNotice] = useState(null);
   const [demoAccounts, setDemoAccounts] = useState([]);
 
@@ -34,7 +35,10 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     setTokenProvider(async () => {
-      if (modeRef.current === 'demo') return sessionStorage.getItem(DEMO_TOKEN_KEY);
+      // A demo session takes precedence in hybrid deployments too.
+      const demoToken = sessionStorage.getItem(DEMO_TOKEN_KEY);
+      if (demoToken) return demoToken;
+      if (modeRef.current === 'demo') return null;
       try {
         return await fb.getIdToken();
       } catch {
@@ -62,10 +66,12 @@ export function AuthProvider({ children }) {
 
     const boot = async () => {
       let serverMode = fb.firebaseConfigured ? 'firebase' : 'demo';
+      let serverDemoLogin = false;
 
       try {
         const health = await apiFetch('/api/health', { auth: false });
         serverMode = health.authMode === 'firebase' ? 'firebase' : 'demo';
+        serverDemoLogin = Boolean(health.demoLogin) || serverMode === 'demo';
       } catch (error) {
         if (cancelled) return;
         setNotice({
@@ -80,6 +86,7 @@ export function AuthProvider({ children }) {
       if (cancelled) return;
       modeRef.current = serverMode;
       setMode(serverMode);
+      setDemoLoginEnabled(serverDemoLogin);
 
       if (serverMode === 'demo') {
         const token = sessionStorage.getItem(DEMO_TOKEN_KEY);
@@ -105,6 +112,28 @@ export function AuthProvider({ children }) {
       }
 
       // Firebase mode -----------------------------------------------------
+      // Hybrid deployments (ALLOW_DEMO_LOGIN=true) also offer the seeded
+      // personas. A stored demo session wins over Firebase until sign-out.
+      const demoToken = sessionStorage.getItem(DEMO_TOKEN_KEY);
+      if (serverDemoLogin && demoToken) {
+        try {
+          const data = await apiFetch('/api/auth/me');
+          if (!cancelled) applyUser(data.user);
+          return;
+        } catch {
+          sessionStorage.removeItem(DEMO_TOKEN_KEY);
+        }
+      }
+
+      if (serverDemoLogin) {
+        try {
+          const data = await apiFetch('/api/auth/demo-accounts', { auth: false });
+          if (!cancelled) setDemoAccounts(data.accounts || []);
+        } catch {
+          /* non fatal */
+        }
+      }
+
       if (!fb.firebaseConfigured) {
         setStatus('configuration_error');
         setNotice({
@@ -119,6 +148,8 @@ export function AuthProvider({ children }) {
         await fb.getRedirectResult();
         const unsubscribe = await fb.onAuthChange(async (firebaseUser) => {
           if (cancelled) return;
+          // An active demo session takes precedence over Firebase callbacks.
+          if (sessionStorage.getItem(DEMO_TOKEN_KEY)) return;
           if (!firebaseUser) {
             applyUser(null);
             return;
@@ -175,6 +206,7 @@ export function AuthProvider({ children }) {
 
   const signInEmail = useCallback(
     async (email, password) => {
+      sessionStorage.removeItem(DEMO_TOKEN_KEY);
       const firebaseUser = await fb.signInWithEmail(email, password);
       if (firebaseUser) return syncWithServer();
       return null;
@@ -184,6 +216,7 @@ export function AuthProvider({ children }) {
 
   const registerEmail = useCallback(
     async (email, password, displayName) => {
+      sessionStorage.removeItem(DEMO_TOKEN_KEY);
       const firebaseUser = await fb.signUpWithEmail(email, password, displayName);
       if (firebaseUser) return syncWithServer();
       return null;
@@ -192,6 +225,7 @@ export function AuthProvider({ children }) {
   );
 
   const signInGoogle = useCallback(async () => {
+    sessionStorage.removeItem(DEMO_TOKEN_KEY);
     const firebaseUser = await fb.signInWithGoogle();
     if (firebaseUser) return syncWithServer();
     return null;
@@ -228,6 +262,7 @@ export function AuthProvider({ children }) {
       notice,
       clearNotice: () => setNotice(null),
       demoAccounts,
+      demoLoginEnabled,
       signInDemo,
       signInEmail,
       registerEmail,
@@ -242,6 +277,7 @@ export function AuthProvider({ children }) {
       mode,
       notice,
       demoAccounts,
+      demoLoginEnabled,
       signInDemo,
       signInEmail,
       registerEmail,

@@ -34,7 +34,7 @@ router.post(
   asyncHandler(async (req, res) => {
     await recordAudit(req.store, req, 'auth.sync', {
       target: { type: 'user', id: req.user.id, label: req.user.email },
-      metadata: { provider: config.demoMode ? 'demo' : 'firebase' },
+      metadata: { provider: (req.auth && req.auth.provider) || (config.demoMode ? 'demo' : 'firebase') },
     });
 
     res.json({
@@ -54,17 +54,17 @@ router.get(
 );
 
 /**
- * POST /api/auth/demo-login  (demo mode only)
+ * POST /api/auth/demo-login
  * Mints a short-lived HMAC token that mirrors a Firebase ID token's contract.
- * It exists so the project can be demonstrated without a Firebase project;
- * in production this route returns 404 and only Firebase tokens are accepted.
+ * It exists so the project can be demonstrated without a Firebase project; it
+ * only answers when demo logins are enabled for this deployment.
  */
 router.post(
   '/demo-login',
   authLimiter,
   validate(demoLogin),
   asyncHandler(async (req, res) => {
-    if (!config.demoMode) {
+    if (!config.demoLoginEnabled) {
       throw notFound('Demo sign-in is disabled on this deployment');
     }
 
@@ -97,7 +97,7 @@ router.post(
 router.get(
   '/demo-accounts',
   asyncHandler(async (req, res) => {
-    if (!config.demoMode) return res.json({ accounts: [] });
+    if (!config.demoLoginEnabled) return res.json({ accounts: [] });
 
     // Always expose the canonical seeded personas (one per role plus the other
     // students) so the sign-in screen is stable even when the shared database

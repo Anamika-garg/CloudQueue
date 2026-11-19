@@ -60,10 +60,21 @@ function verifyDemoToken(token) {
       issuer: 'cloudqueue-demo',
       audience: 'cloudqueue-api',
     });
-    return { uid: payload.sub, email: payload.email, name: payload.name || '' };
+    return {
+      uid: payload.sub,
+      email: payload.email,
+      name: payload.name || '',
+      provider: 'demo',
+    };
   } catch (error) {
     throw unauthorized('Session token is invalid or has expired', 'invalid_token');
   }
+}
+
+/** Demo tokens carry our own issuer claim, so we can route them without guessing. */
+function isDemoToken(token) {
+  const payload = jwt.decode(token);
+  return Boolean(payload && payload.iss === 'cloudqueue-demo');
 }
 
 async function verifyFirebaseToken(token) {
@@ -72,7 +83,13 @@ async function verifyFirebaseToken(token) {
     if (!decoded.email) {
       throw unauthorized('The identity provider did not return an email address', 'missing_email');
     }
-    return { uid: decoded.uid, email: decoded.email, name: decoded.name || '', picture: decoded.picture };
+    return {
+      uid: decoded.uid,
+      email: decoded.email,
+      name: decoded.name || '',
+      picture: decoded.picture,
+      provider: 'firebase',
+    };
   } catch (error) {
     if (error instanceof AppError) throw error;
     throw unauthorized('Firebase ID token is invalid or has expired', 'invalid_token');
@@ -96,7 +113,15 @@ function readBearerToken(req) {
 async function requireAuth(req, res, next) {
   try {
     const token = readBearerToken(req);
-    const identity = config.demoMode ? verifyDemoToken(token) : await verifyFirebaseToken(token);
+    let identity;
+    if (config.demoMode) {
+      identity = verifyDemoToken(token);
+    } else if (config.demoLoginEnabled && isDemoToken(token)) {
+      // Hybrid deployment: Firebase for real accounts, HMAC demo personas too.
+      identity = verifyDemoToken(token);
+    } else {
+      identity = await verifyFirebaseToken(token);
+    }
 
     const store = await getStore();
     const user = await store.users.upsertFromAuth({

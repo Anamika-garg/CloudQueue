@@ -32,6 +32,7 @@ router.get(
       uptimeSeconds: Math.round(process.uptime()),
       environment: config.nodeEnv,
       authMode: config.demoMode ? 'demo' : 'firebase',
+      demoLogin: config.demoLoginEnabled,
       database,
       latencyMs: Date.now() - started,
     };
