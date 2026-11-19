@@ -17,6 +17,8 @@ client/.env
 client/.env.local
 *.pem
 serviceAccountKey.json
+*firebase-adminsdk*.json
+google-services.json
 
 # logs & os
 npm-debug.log*
