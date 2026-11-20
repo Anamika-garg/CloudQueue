@@ -292,7 +292,7 @@ Copy `.env.example` to `.env` at the repository root. On Vercel, add the same ke
 | `FIREBASE_PRIVATE_KEY` | Production | empty | Service-account private key; keep `\n` escapes |
 | `SUPER_ADMIN_EMAILS` | No | empty | Comma-separated emails promoted to `super_admin` on first sign-in |
 | `DEMO_MODE` | No | auto | `true` forces demo auth; `false` forces Firebase |
-| `ALLOW_DEMO_LOGIN` | No | `false` | Keeps the one-click demo personas enabled even when Firebase is configured (hybrid mode). Useful for a public graded deployment |
+| `ALLOW_DEMO_LOGIN` | No | `false` | Enables the two password demo accounts (`student@edu.ac.in`, `superadmin@admin.com`) even when Firebase is configured (hybrid mode). Useful for a public graded deployment |
 | `SEED_DEMO_DATA` | No | follows `DEMO_MODE` | `true` writes/refreshes the deterministic demo dataset once per campus day. Set to `true` on a graded deployment so the dashboards are never empty |
 | `DEMO_JWT_SECRET` | Demo only | insecure default | HMAC secret for demo sessions. **Always override before exposing a demo publicly** |
 | `DISABLE_RATE_LIMIT` | No | `false` | Bypasses rate limits (local load tests only) |
@@ -368,7 +368,7 @@ A `seedstates` collection stores one marker per campus day (`unique` index). Con
    The fallback is what makes a deep link such as `/admin` return `200` instead of `404` on refresh or direct navigation.
 3. Add all server and client environment variables for **Production** (and Preview if desired).
 4. Set `FRONTEND_ORIGIN` to the final deployment origin, for example `https://your-project.vercel.app`. Same-origin browser requests still send an `Origin` header on some methods, so the deployed origin must be listed.
-5. Set `SEED_DEMO_DATA=true` (and an explicit `CAMPUS_TIMEZONE`) so the demo dataset appears on the deployed site. Leave `DEMO_MODE=false` when Firebase is configured, and add `ALLOW_DEMO_LOGIN=true` if you also want the one-click demo personas on the sign-in screen.
+5. Set `SEED_DEMO_DATA=true` (and an explicit `CAMPUS_TIMEZONE`) so the demo dataset appears on the deployed site. Leave `DEMO_MODE=false` when Firebase is configured, and add `ALLOW_DEMO_LOGIN=true` so reviewers can use `student@edu.ac.in` / `Student@123` and `superadmin@admin.com` / `SuperAdmin@123`.
 6. Deploy. Verify:
    - `https://<app>/api/health` → `status: "ok"`, `database: "mongodb-atlas"`, `authMode: "firebase"`
    - `https://<app>/admin` refreshed directly → `200` (no 404)
@@ -386,9 +386,9 @@ A `seedstates` collection stores one marker per campus day (`unique` index). Con
 - [ ] `FRONTEND_ORIGIN` matches the deployed origin
 - [ ] `CAMPUS_TIMEZONE` set explicitly
 - [ ] `SEED_DEMO_DATA=true` so the demo dataset is visible in production
-- [ ] `ALLOW_DEMO_LOGIN=true` if the seeded personas should be clickable on the deployed site
+- [ ] `ALLOW_DEMO_LOGIN=true` so the demo credentials work on the deployed site
 - [ ] `DEMO_MODE=false`
-- [ ] `DEMO_JWT_SECRET` rotated or demo sign-in disabled
+- [ ] `DEMO_JWT_SECRET` set to a strong random value (demo sign-in stays enabled)
 - [ ] `SUPER_ADMIN_EMAILS` set for the first administrator
 - [ ] `GET /api/health` returns `ok`
 
