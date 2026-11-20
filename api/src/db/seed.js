@@ -1,6 +1,7 @@
 'use strict';
 
 const { config } = require('../config/env');
+const { DEMO_CREDENTIALS } = require('../config/demoAccounts');
 const { dateKeyFor } = require('../lib/dateKey');
 
 /**
@@ -26,6 +27,16 @@ const DEMO_USERS = [
   { email: 'admin@campus.edu', displayName: 'Priya Nair', role: 'admin' },
   { email: 'super@campus.edu', displayName: 'Daniel Osei', role: 'super_admin' },
 ];
+
+// The password-protected accounts are seeded exactly like the other personas,
+// so signing in with them immediately shows the same history and dashboards.
+const SEED_USERS = [
+  ...DEMO_USERS,
+  ...DEMO_CREDENTIALS.map(({ password, ...account }) => account),
+];
+
+/** Students whose personal history is populated (never a live token). */
+const HISTORY_EMAILS = ['student@campus.edu', 'student@edu.ac.in'];
 
 const DEMO_SERVICES = [
   {
@@ -87,7 +98,7 @@ async function seedActivity(store) {
 
   // 1. Users ---------------------------------------------------------------
   const users = {};
-  for (const demo of DEMO_USERS) {
+  for (const demo of SEED_USERS) {
     const user = await store.users.upsertFromAuth({
       firebaseUid: `demo_${demo.email.replace(/[^a-z0-9]/gi, '_')}`,
       email: demo.email,
@@ -113,9 +124,10 @@ async function seedActivity(store) {
       }));
   }
 
-  const students = DEMO_USERS.filter((user) => user.role === 'user').map((user) => users[user.email]);
-  const primaryStudent = users['student@campus.edu'];
-  if (!students.length || !primaryStudent) throw new Error('Seed users missing');
+  const students = SEED_USERS.filter((user) => user.role === 'user').map((user) => users[user.email]);
+  const historyStudents = HISTORY_EMAILS.map((email) => users[email]).filter(Boolean);
+  const historyIds = new Set(historyStudents.map((student) => student.id));
+  if (!students.length || !historyStudents.length) throw new Error('Seed users missing');
 
   // 3. Build timestamps, grouped by service + campus day --------------------
   const groups = new Map();
@@ -160,16 +172,19 @@ async function seedActivity(store) {
       const sequence = index + 1;
       const tokenNumber = `${group.service.code}-${pad3(sequence)}`;
 
-      // Give the demo student a realistic personal history, never a live token
-      // so the "Get Token" walkthrough in the demo script is never blocked.
-      const isPrimaryHistory =
+      // Give the demo students a realistic personal history, but never a live
+      // token, so the "Get Token" walkthrough is never blocked.
+      const isHistorySlot =
         isToday && index < Math.max(0, firstLiveIndex - 2) && index % 5 === 0;
-      // Live line entries never belong to the demo student, so the "get a
-      // token" walkthrough always starts from a clean slate.
-      const pool = index >= firstLiveIndex ? students.filter((s) => s.id !== primaryStudent.id) : students;
-      const student = isPrimaryHistory
-        ? primaryStudent
-        : pool[Math.floor(random() * pool.length)] || primaryStudent;
+      // Live line entries never belong to the history students, so the
+      // walkthrough always starts from a clean slate.
+      const pool =
+        index >= firstLiveIndex
+          ? students.filter((student) => !historyIds.has(student.id))
+          : students;
+      const student = isHistorySlot
+        ? historyStudents[(index / 5) % historyStudents.length]
+        : pool[Math.floor(random() * pool.length)] || historyStudents[0];
 
       const status = (() => {
         if (index >= firstLiveIndex && liveCount > 0) {

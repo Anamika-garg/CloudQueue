@@ -72,6 +72,7 @@ const auditQuery = z
 
 const demoLogin = z.object({
   email: z.string().trim().toLowerCase().email(),
+  password: z.string().max(128).optional(),
   displayName: z.string().trim().max(120).optional(),
 });
 

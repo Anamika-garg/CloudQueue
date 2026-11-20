@@ -29,6 +29,7 @@ export function AuthProvider({ children }) {
   const [demoLoginEnabled, setDemoLoginEnabled] = useState(false);
   const [notice, setNotice] = useState(null);
   const [demoAccounts, setDemoAccounts] = useState([]);
+  const [demoCredentials, setDemoCredentials] = useState([]);
 
   const modeRef = useRef(null);
   const authUnsubscribe = useRef(null);
@@ -104,7 +105,10 @@ export function AuthProvider({ children }) {
 
         try {
           const data = await apiFetch('/api/auth/demo-accounts', { auth: false });
-          if (!cancelled) setDemoAccounts(data.accounts || []);
+          if (!cancelled) {
+            setDemoAccounts(data.accounts || []);
+            setDemoCredentials(data.credentials || []);
+          }
         } catch {
           /* non fatal */
         }
@@ -128,7 +132,10 @@ export function AuthProvider({ children }) {
       if (serverDemoLogin) {
         try {
           const data = await apiFetch('/api/auth/demo-accounts', { auth: false });
-          if (!cancelled) setDemoAccounts(data.accounts || []);
+          if (!cancelled) {
+            setDemoAccounts(data.accounts || []);
+            setDemoCredentials(data.credentials || []);
+          }
         } catch {
           /* non fatal */
         }
@@ -191,11 +198,11 @@ export function AuthProvider({ children }) {
   // Sign-in actions
   // ---------------------------------------------------------------------
   const signInDemo = useCallback(
-    async (email, displayName) => {
+    async (email, password) => {
       const data = await apiFetch('/api/auth/demo-login', {
         method: 'POST',
         auth: false,
-        body: { email, displayName },
+        body: { email, password },
       });
       sessionStorage.setItem(DEMO_TOKEN_KEY, data.token);
       applyUser(data.user);
@@ -262,6 +269,7 @@ export function AuthProvider({ children }) {
       notice,
       clearNotice: () => setNotice(null),
       demoAccounts,
+      demoCredentials,
       demoLoginEnabled,
       signInDemo,
       signInEmail,
@@ -277,6 +285,7 @@ export function AuthProvider({ children }) {
       mode,
       notice,
       demoAccounts,
+      demoCredentials,
       demoLoginEnabled,
       signInDemo,
       signInEmail,

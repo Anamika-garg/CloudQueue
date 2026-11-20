@@ -240,17 +240,20 @@ Then use **http://localhost:5173**. Vite proxies `/api` to `http://localhost:400
 
 ## Demo accounts
 
-In demo mode any email signs in without a password. The login screen offers one persona per role; these are the seeded accounts used by the demo script and by the read-only demo on the deployed site:
+The sign-in screen shows two password-protected demo accounts. Use these for review, grading or a public deployment:
 
-| Role | Email | Name | Lands on |
-|---|---|---|---|
-| `user` | `student@campus.edu` | Aarav Sharma | `/app` (student dashboard) |
-| `admin` | `admin@campus.edu` | Priya Nair | `/admin` (queue control) |
-| `super_admin` | `super@campus.edu` | Daniel Osei | `/admin` + Services link |
+| Role | Email | Password | Name | Lands on |
+|---|---|---|---|---|
+| `user` | `student@edu.ac.in` | `Student@123` | Aarav Sharma | `/app` (student dashboard) |
+| `super_admin` | `superadmin@admin.com` | `SuperAdmin@123` | Daniel Osei | `/admin` + Services link |
 
-Additional seeded students (`fatima@`, `marcus@`, `lena@`, `yusuf@campus.edu`) populate the queue and history. The primary student has history but **never a live token**, so the "get a token" walkthrough always starts clean.
+Both accounts are seeded with the full demo dataset, so the student opens with **30 personal tokens of history** across the three demo days and the super admin sees populated queues, charts and audit log. The student deliberately has **no live token**, so the "get a token" walkthrough always starts clean.
 
-`GET /api/auth/demo-accounts` always returns these seven canonical personas (merged with any stored display name or role), so the sign-in screen does not pick up unrelated accounts from a shared database.
+In pure demo mode (`DEMO_MODE=true`) any email still signs in without a password, and one persona per role (including `admin@campus.edu`) is offered as a one-click button. When Firebase is configured but `ALLOW_DEMO_LOGIN=true`, only the two credential accounts above are accepted by `/api/auth/demo-login`.
+
+Additional seeded students (`fatima@`, `marcus@`, `lena@`, `yusuf@campus.edu`) populate the queue and history.
+
+`GET /api/auth/demo-accounts` returns the seven canonical personas (merged with any stored display name or role) plus a `credentials` array with the two password accounts, so the sign-in screen never picks up unrelated accounts from a shared database. Both lists come from `api/src/config/demoAccounts.js` and `api/src/db/seed.js`; keep them in sync with this table.
 
 ---
 
@@ -261,10 +264,10 @@ Additional seeded students (`fatima@`, `marcus@`, `lena@`, `yusuf@campus.edu`) p
 | Activation | `DEMO_MODE=true`, or automatically when Firebase credentials are missing | `DEMO_MODE=false` with complete Firebase credentials |
 | Identity | HMAC-signed JWT issued by `POST /api/auth/demo-login` | Firebase ID token verified with the Admin SDK (plus optional demo personas when `ALLOW_DEMO_LOGIN=true`) |
 | Token lifetime | 12 hours, stored in `sessionStorage` | Firebase-managed, short-lived and auto-refreshed |
-| Password | Ignored | Enforced by Firebase |
+| Password | Ignored for arbitrary emails; required for the two advertised demo credentials | Enforced by Firebase; demo credentials still require `Student@123` / `SuperAdmin@123` when `ALLOW_DEMO_LOGIN=true` |
 | Database | In-memory (unless `MONGODB_URI` is set) | MongoDB Atlas |
 | Demo dataset | Refreshed automatically | Refreshed automatically when `SEED_DEMO_DATA=true`; otherwise only bootstrapped into an empty database |
-| `/api/auth/demo-login` | Available | Returns `404` |
+| `/api/auth/demo-login` | Available | Returns `404` unless `ALLOW_DEMO_LOGIN=true`, which enables the two password accounts |
 | Intended use | Local review, grading, demos | Real deployment |
 
 The client asks `GET /api/health` which mode the server is in and adapts its login UI accordingly. The server is the single source of truth.

@@ -43,7 +43,9 @@ Verify before presenting:
 - [ ] **http://localhost:4000/api/health** returns `"status":"ok"`, `"authMode":"demo"`, `"database":"memory"`
 - [ ] **http://localhost:4000** loads the landing page
 - [ ] The sign-in card shows the **Demo** badge
-- [ ] Three persona buttons are visible: **Aarav Sharma**, **Priya Nair**, **Daniel Osei**
+- [ ] The **Demo credentials** panel lists `student@edu.ac.in` / `Student@123` and `superadmin@admin.com` / `SuperAdmin@123`
+- [ ] One click on either credential signs in with the seeded data
+- [ ] (Demo mode only) the other personas — **Priya Nair**, **Daniel Osei** — are visible
 - [ ] No other CloudQueue process is using port 4000
 
 ### 2. Prepare three browser surfaces
@@ -68,7 +70,7 @@ Use **two different browser profiles** (or one incognito and one normal). Demo s
 
 If the demo goes sideways, run `npm run seed` to rebuild the dataset (or restart the server when using the in-memory store). The seeder clears the demo offices' tokens, so the primary student has no live token again and Act 2 can be repeated cleanly.
 
-> **Why the primary student has no live token:** the seed gives `student@campus.edu` history but deliberately keeps them out of today's live queues, so "Get token" always works on the first try.
+> **Why the primary student has no live token:** the seed gives `student@edu.ac.in` history but deliberately keeps them out of today's live queues, so "Get token" always works on the first try.
 
 ### 5. Rehearse the timing
 
@@ -120,7 +122,7 @@ The acts are budgeted for a relaxed pace. If you are short on time, drop Act 6 a
 
 **Do:**
 
-1. In the sign-in card, click **Aarav Sharma · Student**.
+1. In the **Demo credentials** panel, click **Aarav Sharma · Student** — or type `student@edu.ac.in` / `Student@123` in the *Sign in with a demo account* form.
    - Expected: lands on **`/app`**, header shows **Demo mode**, greeting **"Hello, Aarav"**.
 2. Point out the **Live** badge and the 8-second refresh label.
 3. In **Available services**, find the **Registrar** card (code **REG**) and click **Get token**.
@@ -139,7 +141,7 @@ The acts are budgeted for a relaxed pace. If you are short on time, drop Act 6 a
 
 **Say:**
 
-> "Aarav signs in with the demo persona — in production this is Firebase email or Google sign-in, and the API verifies the ID token on every request.
+> "Aarav signs in with the password-protected demo credential `student@edu.ac.in`. In production this is Firebase email or Google sign-in, and the API verifies the ID token on every request.
 >
 > He picks the Registrar and taps Get token. The API checks that he doesn't already hold a token for this office today, then atomically increments the day's sequence. That's a single MongoDB `$inc` operation, so two students tapping at the same millisecond still get different numbers — REG-014 and REG-015, never a duplicate.
 >
@@ -163,7 +165,7 @@ The acts are budgeted for a relaxed pace. If you are short on time, drop Act 6 a
 
 **Do:**
 
-1. Click **Priya Nair · Office admin**.
+1. Click **Daniel Osei · System admin** in the **Demo credentials** panel, or type `superadmin@admin.com` / `SuperAdmin@123`.
    - Expected: lands on **`/admin`**, header **"Admin console · office administrator"**, title **"Queue control"**.
 2. Point at the service selector and click **Registrar** (the page may default to Bursary alphabetically).
 3. Point at the **Now serving · Registrar** banner:
@@ -183,7 +185,7 @@ The acts are budgeted for a relaxed pace. If you are short on time, drop Act 6 a
 
 **Say:**
 
-> "Priya sees exactly what the student sees, plus the identities behind the tokens — because staff need them, while the public board never gets them.
+> "Daniel sees exactly what the student sees, plus the identities behind the tokens — because staff need them, while the public board never gets them.
 >
 > Call next is the most important operation in the system. In one atomic `findOneAndUpdate`, the API closes the token currently at the counter and claims the oldest waiting token by sequence. If two tellers press the button at the same moment, they get different tokens — the database decides, not the browser.
 >
@@ -267,7 +269,7 @@ The acts are budgeted for a relaxed pace. If you are short on time, drop Act 6 a
 
 ## Act 6 — Super-admin services and roles (9:30–11:30)
 
-**Screen:** Window B. Sign out of Priya's account (click the account chip → **Sign out**), then sign in as **Daniel Osei · System admin**.
+**Screen:** Window B. You are already signed in as **Daniel Osei · System admin** (`superadmin@admin.com`), so the admin console shows the super-admin navigation.
 
 **Do:**
 
@@ -357,8 +359,8 @@ Show the diagram and narrate top to bottom:
 Use this when you have one minute and one screen.
 
 1. **Landing (10 s).** "CloudQueue replaces the campus corridor queue with a digital token. React SPA on Vercel, serverless Express, MongoDB Atlas, Firebase Auth."
-2. **Student (25 s).** Sign in as **Aarav Sharma** → **Get token** on **Registrar**. "Atomic sequence, so no duplicate numbers. This is his position, ETA and who's ahead; it refreshes every eight seconds."
-3. **Admin (25 s).** Sign in as **Priya Nair** in a second window → select **Registrar** → **Call next token**. "The previous token is closed and the oldest waiting token is claimed atomically. Watch the student window — it updates on its own."
+2. **Student (25 s).** Sign in with `student@edu.ac.in` / `Student@123` → **Get token** on **Registrar**. "Atomic sequence, so no duplicate numbers. This is his position, ETA and who's ahead; it refreshes every eight seconds."
+3. **Admin (25 s).** Sign in with `superadmin@admin.com` / `SuperAdmin@123` in a second window → select **Registrar** → **Call next token**. "The previous token is closed and the oldest waiting token is claimed atomically. Watch the student window — it updates on its own."
 4. **Analytics (15 s).** Point at the KPI row and the two charts. "Daily KPIs, hourly demand and wait, history, CSV and an audit log."
 5. **Display (10 s).** Open `/display`. "The lobby screen reads the same cloud state and shows no personal data."
 6. **Close (5 s).** "53 API assertions pass. Full report and demo script are in the repo."
@@ -419,6 +421,8 @@ Use this when you have one minute and one screen.
 |---|---|---|
 | Landing shows **"Cannot reach the CloudQueue API"** | API not running | Start `npm run dev`; check `/api/health` |
 | Sign-in card shows **Live** instead of **Demo** | Firebase env vars present | Set `DEMO_MODE=true`, or `ALLOW_DEMO_LOGIN=true` to keep both, then restart |
+| **Incorrect password for this demo account** | Wrong demo password | Use `Student@123` for `student@edu.ac.in` and `SuperAdmin@123` for `superadmin@admin.com` |
+| Demo credential returns **401** on a deployed site | Demo logins off, or Firebase-only server | Set `ALLOW_DEMO_LOGIN=true` in Vercel and redeploy |
 | Student **Get token** returns "You already hold a token" | A previous run issued one | Cancel it, or run `npm run seed` to reset |
 | Admin page opens on **Bursary** | Services are alphabetical | Click **Registrar** in the service selector |
 | Charts are empty | Date selector is not today, or timezone mismatch | Set the date to today; set `CAMPUS_TIMEZONE` explicitly |

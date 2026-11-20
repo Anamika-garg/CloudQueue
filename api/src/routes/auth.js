@@ -1,9 +1,11 @@
 'use strict';
 
+const crypto = require('crypto');
 const express = require('express');
 const { config } = require('../config/env');
+const { DEMO_CREDENTIALS, findDemoCredential } = require('../config/demoAccounts');
 const { getStore } = require('../db');
-const { asyncHandler, notFound } = require('../lib/http');
+const { asyncHandler, notFound, unauthorized } = require('../lib/http');
 const { requireAuth, signDemoToken } = require('../middleware/auth');
 const { authLimiter } = require('../middleware/rateLimit');
 const { validate } = require('../middleware/validate');
@@ -21,6 +23,13 @@ const publicUser = (user) => ({
   photoUrl: user.photoUrl || '',
   createdAt: user.createdAt,
 });
+
+/** Constant-time comparison so demo passwords do not leak through timing. */
+function passwordMatches(input, expected) {
+  const a = crypto.createHash('sha256').update(String(input || '')).digest();
+  const b = crypto.createHash('sha256').update(String(expected)).digest();
+  return crypto.timingSafeEqual(a, b);
+}
 
 /**
  * POST /api/auth/sync
@@ -68,13 +77,34 @@ router.post(
       throw notFound('Demo sign-in is disabled on this deployment');
     }
 
-    const { email, displayName } = req.valid.body;
+    const { email, password, displayName } = req.valid.body;
+    const credential = findDemoCredential(email);
+
+    // The two advertised accounts always require their password. In a hybrid
+    // (Firebase + demo) deployment they are the only accounts this route
+    // accepts; pure demo mode still allows any email for convenience.
+    if (credential) {
+      if (!passwordMatches(password, credential.password)) {
+        throw unauthorized('Incorrect password for this demo account', 'invalid_credentials');
+      }
+    } else if (!config.demoMode) {
+      throw unauthorized(
+        'Use one of the demo credentials shown on the sign-in screen',
+        'invalid_credentials'
+      );
+    }
+
     const store = await getStore();
-    const user = await store.users.upsertFromAuth({
+    let user = await store.users.upsertFromAuth({
       firebaseUid: `demo_${email.replace(/[^a-z0-9]/gi, '_')}`,
       email,
-      displayName: displayName || undefined,
+      displayName: (credential && credential.displayName) || displayName || undefined,
     });
+
+    // Keep the seeded role authoritative even if the record already existed.
+    if (credential && user.role !== credential.role) {
+      user = await store.users.updateRole(user.id, credential.role);
+    }
 
     const token = signDemoToken({ email: user.email, displayName: user.displayName });
     req.user = user;
@@ -97,7 +127,7 @@ router.post(
 router.get(
   '/demo-accounts',
   asyncHandler(async (req, res) => {
-    if (!config.demoLoginEnabled) return res.json({ accounts: [] });
+    if (!config.demoLoginEnabled) return res.json({ accounts: [], credentials: [] });
 
     // Always expose the canonical seeded personas (one per role plus the other
     // students) so the sign-in screen is stable even when the shared database
@@ -115,6 +145,14 @@ router.get(
           role: (stored && stored.role) || demo.role,
         };
       }),
+      // Public demo credentials - intentionally exposed so reviewers can sign
+      // in. Only returned when demo logins are enabled for this deployment.
+      credentials: DEMO_CREDENTIALS.map(({ email, password, displayName, role }) => ({
+        email,
+        password,
+        displayName,
+        role,
+      })),
     });
   })
 );

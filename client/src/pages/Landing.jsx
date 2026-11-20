@@ -14,6 +14,21 @@ const FALLBACK_ACCOUNTS = [
   { email: 'super@campus.edu', displayName: 'Daniel Osei', role: 'super_admin' },
 ];
 
+const FALLBACK_CREDENTIALS = [
+  {
+    email: 'student@edu.ac.in',
+    password: 'Student@123',
+    displayName: 'Aarav Sharma',
+    role: 'user',
+  },
+  {
+    email: 'superadmin@admin.com',
+    password: 'SuperAdmin@123',
+    displayName: 'Daniel Osei',
+    role: 'super_admin',
+  },
+];
+
 const FEATURES = [
   {
     title: 'Digital tokens, zero paper',
@@ -42,6 +57,7 @@ function SignInCard() {
   const {
     mode,
     demoAccounts,
+    demoCredentials,
     demoLoginEnabled,
     signInDemo,
     signInEmail,
@@ -56,18 +72,28 @@ function SignInCard() {
   const [tab, setTab] = useState('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [demoEmail, setDemoEmail] = useState('');
+  const [demoPassword, setDemoPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [busy, setBusy] = useState(null);
   const [error, setError] = useState(null);
 
-  const quickAccounts = useMemo(() => {
-    const source = demoAccounts && demoAccounts.length ? demoAccounts : FALLBACK_ACCOUNTS;
-    return ['user', 'admin', 'super_admin']
-      .map((role) => source.find((account) => account.role === role))
-      .filter(Boolean);
-  }, [demoAccounts]);
-
   const showDemoAccounts = mode === 'demo' || demoLoginEnabled;
+
+  const credentialAccounts = useMemo(() => {
+    if (!showDemoAccounts) return [];
+    return demoCredentials && demoCredentials.length ? demoCredentials : FALLBACK_CREDENTIALS;
+  }, [demoCredentials, showDemoAccounts]);
+
+  const personaAccounts = useMemo(() => {
+    const source = demoAccounts && demoAccounts.length ? demoAccounts : FALLBACK_ACCOUNTS;
+    const credentialEmails = new Set(credentialAccounts.map((account) => account.email));
+    return ['user', 'admin', 'super_admin']
+      .map((role) =>
+        source.find((account) => account.role === role && !credentialEmails.has(account.email))
+      )
+      .filter(Boolean);
+  }, [demoAccounts, credentialAccounts]);
 
   const go = (user) => {
     navigate(user && ['admin', 'super_admin'].includes(user.role) ? '/admin' : '/app', {
@@ -80,10 +106,25 @@ function SignInCard() {
     clearNotice();
     setBusy(account.email);
     try {
-      const user = await signInDemo(account.email);
+      const user = await signInDemo(account.email, account.password);
       go(user);
     } catch (err) {
       setError(err.message);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handleDemoCredentialSubmit = async (event) => {
+    event.preventDefault();
+    setError(null);
+    clearNotice();
+    setBusy('demo-form');
+    try {
+      const user = await signInDemo(demoEmail.trim(), demoPassword);
+      go(user);
+    } catch (err) {
+      setError(err.code ? err.message : friendlyFirebaseError(err));
     } finally {
       setBusy(null);
     }
@@ -96,7 +137,7 @@ function SignInCard() {
     setBusy('form');
     try {
       if (mode === 'demo') {
-        const user = await signInDemo(email.trim());
+        const user = await signInDemo(email.trim(), password);
         go(user);
       } else if (tab === 'register') {
         const user = await registerEmail(email.trim(), password, displayName.trim());
@@ -139,9 +180,9 @@ function SignInCard() {
         </h2>
         <p className="mt-1 text-sm text-slate-500">
           {mode === 'demo'
-            ? 'Choose a persona to explore both sides of the queue. No password required in demo mode.'
+            ? 'Use the demo credentials below, or enter any email. The extra personas need no password.'
             : demoLoginEnabled
-              ? 'Pick a demo persona to explore instantly, or sign in with a real campus account.'
+              ? 'Use a demo credential below, or sign in with a real campus account.'
               : 'Use your campus email or Google account. Roles are assigned by the administrator.'}
         </p>
 
@@ -157,9 +198,72 @@ function SignInCard() {
           </div>
         )}
 
-        {showDemoAccounts && (
-          <div className="mt-5 space-y-2">
-            {quickAccounts.map((account) => (
+        {showDemoAccounts && credentialAccounts.length > 0 && (
+          <div className="mt-5 rounded-xl border border-indigo-100 bg-indigo-50/60 p-3">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-500">
+              Demo credentials
+            </p>
+            <div className="mt-2 space-y-2">
+              {credentialAccounts.map((account) => (
+                <button
+                  key={account.email}
+                  type="button"
+                  onClick={() => handleDemo(account)}
+                  disabled={Boolean(busy)}
+                  className="group flex w-full items-center gap-3 rounded-lg border border-indigo-100 bg-white px-3 py-2 text-left transition hover:border-indigo-300 disabled:opacity-60"
+                >
+                  <span
+                    className={cx(
+                      'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[11px] font-bold',
+                      account.role === 'super_admin'
+                        ? 'bg-violet-100 text-violet-700'
+                        : account.role === 'admin'
+                          ? 'bg-indigo-100 text-indigo-700'
+                          : 'bg-slate-100 text-slate-600'
+                    )}
+                  >
+                    {account.displayName
+                      ?.split(' ')
+                      .map((part) => part[0])
+                      .join('')
+                      .slice(0, 2)}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-semibold text-slate-900">
+                      {account.displayName}{' '}
+                      <span className="font-normal text-slate-400">
+                        · {ROLE_LABELS[account.role]}
+                      </span>
+                    </span>
+                    <span className="block truncate font-mono text-[11px] text-slate-600">
+                      {account.email} / {account.password}
+                    </span>
+                  </span>
+                  {busy === account.email ? (
+                    <Spinner className="h-4 w-4 text-indigo-600" />
+                  ) : (
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      className="h-4 w-4 text-slate-300 transition group-hover:text-indigo-500"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14m0 0-5-5m5 5-5 5" />
+                    </svg>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {mode === 'demo' && personaAccounts.length > 0 && (
+          <div className="mt-3 space-y-2">
+            <p className="px-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              Other personas
+            </p>
+            {personaAccounts.map((account) => (
               <button
                 key={account.email}
                 type="button"
@@ -235,32 +339,87 @@ function SignInCard() {
                   autoComplete="email"
                 />
               </div>
+              <div>
+                <label className="label" htmlFor="demo-password">
+                  Password{' '}
+                  <span className="font-normal text-slate-400">(demo accounts only)</span>
+                </label>
+                <input
+                  id="demo-password"
+                  type="password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  placeholder="Student@123"
+                  className="input"
+                  autoComplete="current-password"
+                />
+              </div>
               <button type="submit" className="btn-brand w-full" disabled={Boolean(busy)}>
                 {busy === 'form' ? <Spinner className="h-4 w-4" /> : null}
                 Continue
               </button>
               <p className="text-center text-[11px] text-slate-400">
-                Demo sessions use a signed HMAC token from the API, not Firebase.
+                The demo credentials need their password; other emails can leave it blank.
               </p>
             </form>
           </>
         ) : (
           <>
             {showDemoAccounts && (
-              <div className="my-5 flex items-center gap-3">
-                <span className="h-px flex-1 bg-slate-200" />
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                  or use a campus account
-                </span>
-                <span className="h-px flex-1 bg-slate-200" />
-              </div>
+              <>
+                <div className="my-5 flex items-center gap-3">
+                  <span className="h-px flex-1 bg-slate-200" />
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                    or sign in with a demo account
+                  </span>
+                  <span className="h-px flex-1 bg-slate-200" />
+                </div>
+                <form onSubmit={handleDemoCredentialSubmit} className="space-y-3">
+                  <div>
+                    <label className="label" htmlFor="demo-cred-email">
+                      Demo email
+                    </label>
+                    <input
+                      id="demo-cred-email"
+                      type="email"
+                      required
+                      value={demoEmail}
+                      onChange={(event) => setDemoEmail(event.target.value)}
+                      placeholder="student@edu.ac.in"
+                      className="input"
+                      autoComplete="email"
+                    />
+                  </div>
+                  <div>
+                    <label className="label" htmlFor="demo-cred-password">
+                      Password
+                    </label>
+                    <input
+                      id="demo-cred-password"
+                      type="password"
+                      required
+                      value={demoPassword}
+                      onChange={(event) => setDemoPassword(event.target.value)}
+                      placeholder="Student@123"
+                      className="input"
+                      autoComplete="current-password"
+                    />
+                  </div>
+                  <button type="submit" className="btn-brand w-full" disabled={Boolean(busy)}>
+                    {busy === 'demo-form' ? <Spinner className="h-4 w-4" /> : null}
+                    Sign in with demo account
+                  </button>
+                </form>
+              </>
             )}
-            <div
-              className={cx(
-                'grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1',
-                showDemoAccounts ? '' : 'mt-5'
-              )}
-            >
+            <div className="my-5 flex items-center gap-3">
+              <span className="h-px flex-1 bg-slate-200" />
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                or use a campus account
+              </span>
+              <span className="h-px flex-1 bg-slate-200" />
+            </div>
+            <div className="grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1">
               <button
                 type="button"
                 onClick={() => setTab('signin')}
